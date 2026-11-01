@@ -73,9 +73,20 @@ class TestInteractiveClicks(unittest.TestCase):
             controller.handle_event(InputEvent(kind="click", x=x, y=y))
             controller.handle_event(InputEvent(kind="right_click", x=x, y=y))
 
-        # 4. Simulate other key presses
-        for k in ["slot_0", "slot_1", "shovel", "auto_sun", "escape"]:
+        # 4. Simulate other key presses and skip button clicks
+        for k in ["slot_0", "slot_1", "shovel", "auto_sun", "escape", "skip_next", "skip_prev", "toggle_warp"]:
             controller.handle_event(InputEvent(kind="key", key_name=k))
+
+        # Close warp if opened
+        if controller.mode == "warp":
+            controller.handle_event(InputEvent(kind="key", key_name="escape"))
+
+        # Click skip button directly on HUD
+        skip_btn = controller.hud_rects.skip_button
+        controller.handle_event(InputEvent(kind="click", x=float(skip_btn.centerx), y=float(skip_btn.centery)))
+        self.assertEqual(controller.mode, "warp")
+        controller.handle_event(InputEvent(kind="key", key_name="escape"))
+        self.assertEqual(controller.mode, "battle")
 
         # 5. Simulate advancing 600 frames while clicking
         dt = 1.0 / 60.0
@@ -84,7 +95,7 @@ class TestInteractiveClicks(unittest.TestCase):
             if i % 50 == 0:
                 controller.handle_event(InputEvent(kind="click", x=300 + (i % 200), y=250 + (i % 150)))
 
-        self.assertTrue(world.game_time > 0)
+        self.assertTrue(controller.world.game_time > 0)
         print("Interactive clicks stress test completed with 0 errors!")
 
 

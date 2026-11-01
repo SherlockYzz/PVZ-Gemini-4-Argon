@@ -96,6 +96,26 @@ class Zombie:
         return self.hp > 0
 
     @property
+    def dead(self) -> bool:
+        return self.hp <= 0
+
+    @property
+    def ztype(self) -> str:
+        return self.spec_id
+
+    @property
+    def has_newspaper(self) -> bool:
+        return self.spec_id == "newspaper" and self.shield_hp > 0
+
+    @property
+    def newspaper_hp(self) -> float:
+        return self.shield_hp if self.spec_id == "newspaper" else 0.0
+
+    @property
+    def flying(self) -> bool:
+        return self.spec_id == "balloon" and not getattr(self, "balloon_popped", False)
+
+    @property
     def total_current_hp(self) -> float:
         return self.hp + max(0.0, self.shield_hp)
 

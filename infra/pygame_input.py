@@ -51,6 +51,12 @@ class InputHandler:
                     events.append(InputEvent(kind="key", key_name="pause"))
                 elif e.key == pygame.K_ESCAPE:
                     events.append(InputEvent(kind="key", key_name="escape"))
+                elif e.key in (pygame.K_TAB, pygame.K_n):
+                    events.append(InputEvent(kind="key", key_name="skip_next"))
+                elif e.key == pygame.K_p:
+                    events.append(InputEvent(kind="key", key_name="skip_prev"))
+                elif e.key == pygame.K_l:
+                    events.append(InputEvent(kind="key", key_name="toggle_warp"))
 
             elif e.type == pygame.MOUSEMOTION:
                 lx, ly = self.viewport.window_to_logical(e.pos[0], e.pos[1])

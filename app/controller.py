@@ -15,6 +15,7 @@ from infra.pygame_input import InputEvent
 from infra.pygame_audio import PygameAudioAdapter
 from infra.json_save import JsonSaveAdapter
 from usecases.start_level import start_level
+from usecases.skip_level import skip_to_level
 from usecases.plant_seed import execute_plant_action, execute_shovel_action
 from usecases.collect_sun import execute_collect_sun
 from usecases.advance_frame import advance_battle_frame
@@ -28,7 +29,7 @@ class GameController:
         self.audio = audio
         self.storage = storage
 
-        self.mode = "menu"  # "menu", "seed_select", "battle", "pause", "victory", "game_over"
+        self.mode = "menu"  # "menu", "seed_select", "battle", "pause", "victory", "game_over", "warp"
         self.world: Optional[World] = None
         self.hud_rects: HudRects = compute_hud_layout(session.max_seed_slots)
         self.latest_reward: Optional[LevelReward] = None
@@ -46,6 +47,8 @@ class GameController:
             self._handle_seed_select_event(event, seed_buttons)
         elif self.mode == "battle":
             self._handle_battle_event(event)
+        elif self.mode == "warp":
+            self._handle_warp_event(event, overlay_buttons)
         elif self.mode in ("pause", "victory", "game_over"):
             self._handle_overlay_event(event, overlay_buttons)
 
@@ -129,13 +132,15 @@ class GameController:
                         self.mode = "menu"
                         self.audio.play_music("menu")
 
-    def _start_battle(self) -> None:
-        self.world = start_level(self.session.current_level_idx, self.session)
-        self.mode = "battle"
-
+    def _sync_music_for_level(self) -> None:
         lvl_spec = LEVELS[self.session.current_level_idx]
         music_track = "endless" if lvl_spec.is_endless else "night" if "night" in lvl_spec.theme else "day"
         self.audio.play_music(music_track)
+
+    def _start_battle(self) -> None:
+        self.world = start_level(self.session.current_level_idx, self.session)
+        self.mode = "battle"
+        self._sync_music_for_level()
 
     def _handle_battle_event(self, event: InputEvent) -> None:
         if not self.world:
@@ -155,6 +160,21 @@ class GameController:
                 self.audio.play_sound("click")
             elif event.key_name == "pause":
                 self.mode = "pause"
+            elif event.key_name == "toggle_warp":
+                self.mode = "warp"
+                self.audio.play_sound("click")
+            elif event.key_name == "skip_next":
+                target = (self.session.current_level_idx + 1) % len(LEVELS)
+                self.world = skip_to_level(target, self.session)
+                self.storage.save(self.session)
+                self.audio.play_sound("win")
+                self._sync_music_for_level()
+            elif event.key_name == "skip_prev":
+                target = (self.session.current_level_idx - 1) % len(LEVELS)
+                self.world = skip_to_level(target, self.session)
+                self.storage.save(self.session)
+                self.audio.play_sound("win")
+                self._sync_music_for_level()
             elif event.seed_slot is not None:
                 if event.seed_slot < len(self.session.selected_seeds):
                     self.session.active_seed_idx = event.seed_slot
@@ -200,6 +220,11 @@ class GameController:
                 self.audio.play_sound("click")
                 return
 
+            if self.hud_rects.skip_button.collidepoint(mx, my):
+                self.mode = "warp"
+                self.audio.play_sound("click")
+                return
+
             if self.session.has_auto_sun and self.hud_rects.auto_sun_toggle.collidepoint(mx, my):
                 toggle_auto_sun(self.session)
                 self.audio.play_sound("click")
@@ -229,6 +254,57 @@ class GameController:
                     planted = execute_plant_action(col, row, self.world, self.session)
                     if planted:
                         self.audio.play_sound("plant")
+                    return
+
+    def _handle_warp_event(self, event: InputEvent, buttons: dict) -> None:
+        if event.kind == "key":
+            if event.key_name in ("escape", "toggle_warp"):
+                self.mode = "battle"
+                self.audio.play_sound("click")
+                return
+            elif event.key_name == "skip_next":
+                target = (self.session.current_level_idx + 1) % len(LEVELS)
+                self.world = skip_to_level(target, self.session)
+                self.storage.save(self.session)
+                self.mode = "battle"
+                self.audio.play_sound("win")
+                self._sync_music_for_level()
+                return
+            elif event.key_name == "skip_prev":
+                target = (self.session.current_level_idx - 1) % len(LEVELS)
+                self.world = skip_to_level(target, self.session)
+                self.storage.save(self.session)
+                self.mode = "battle"
+                self.audio.play_sound("win")
+                self._sync_music_for_level()
+                return
+            return
+
+        if event.kind != "click" or not buttons:
+            return
+
+        mx, my = event.x, event.y
+        for name, rect in buttons.items():
+            if rect.collidepoint(mx, my):
+                if name == "warp_close":
+                    self.mode = "battle"
+                    self.audio.play_sound("click")
+                    return
+                elif name == "warp_next":
+                    target = (self.session.current_level_idx + 1) % len(LEVELS)
+                    self.world = skip_to_level(target, self.session)
+                    self.storage.save(self.session)
+                    self.mode = "battle"
+                    self.audio.play_sound("win")
+                    self._sync_music_for_level()
+                    return
+                elif name.startswith("warp_"):
+                    idx = int(name.split("_")[1])
+                    self.world = skip_to_level(idx, self.session)
+                    self.storage.save(self.session)
+                    self.mode = "battle"
+                    self.audio.play_sound("win")
+                    self._sync_music_for_level()
                     return
 
     def _handle_overlay_event(self, event: InputEvent, buttons: dict) -> None:

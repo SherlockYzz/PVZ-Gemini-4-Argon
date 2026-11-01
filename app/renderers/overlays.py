@@ -6,6 +6,7 @@ from typing import Optional
 from domain.model.session import Session
 from domain.spec.rewards import LevelReward
 from domain.spec.plants import PLANTS
+from domain.spec.levels import LEVELS
 from infra.pygame_fonts import get_font
 from infra.sprites import get_sprites
 
@@ -145,5 +146,99 @@ def render_game_over(surface: pygame.Surface) -> dict[str, pygame.Rect]:
     pygame.draw.rect(surface, (160, 160, 160), menu_btn, 2, border_radius=8)
     m_lbl = font_mid.render("返回主菜单", True, (255, 255, 255))
     surface.blit(m_lbl, (menu_btn.x + (menu_btn.width - m_lbl.get_width()) // 2, menu_btn.y + 12))
+
+    return buttons
+
+
+def render_warp_overlay(surface: pygame.Surface, session: Session, mouse_pos: tuple[float, float]) -> dict[str, pygame.Rect]:
+    """Renders the Time-Warp Portal overlay for instant jumping across all 16 levels."""
+    dim = pygame.Surface((1200, 760), pygame.SRCALPHA)
+    dim.fill((17, 28, 23, 175))
+    surface.blit(dim, (0, 0))
+
+    box = pygame.Rect(140, 45, 920, 655)
+    # Vintage parchment window
+    pygame.draw.rect(surface, (246, 238, 212), box, border_radius=16)
+    pygame.draw.rect(surface, (68, 52, 28), box, 4, border_radius=16)
+
+    font_title = get_font(22, bold=True)
+    font_desc = get_font(13)
+    font_card_title = get_font(13, bold=True)
+    font_tiny = get_font(11, bold=True)
+    font_btn = get_font(15, bold=True)
+
+    # Title & Help Hint
+    t_lbl = font_title.render("【时空穿梭 · 任意跳关传送门】", True, (62, 42, 18))
+    surface.blit(t_lbl, (box.x + (box.width - t_lbl.get_width()) // 2, box.y + 14))
+
+    desc_lbl = font_desc.render("点击任意关卡秒速直达并自动补齐所有战利品！快捷键：[Tab]/[N] 下一关 | [P] 上一关 | [L]/[Esc] 关闭", True, (115, 90, 55))
+    surface.blit(desc_lbl, (box.x + (box.width - desc_lbl.get_width()) // 2, box.y + 44))
+
+    pygame.draw.line(surface, (185, 160, 120), (box.x + 20, box.y + 68), (box.right - 20, box.y + 68), 2)
+
+    buttons: dict[str, pygame.Rect] = {}
+    card_w = 205
+    card_h = 76
+    gap_x = 16
+    gap_y = 10
+    wx0 = box.x + (box.width - (4 * card_w + 3 * gap_x)) // 2
+    wy0 = box.y + 78
+    mx, my = mouse_pos
+
+    for i in range(len(LEVELS)):
+        col = i % 4
+        row = i // 4
+        wrect = pygame.Rect(wx0 + col * (card_w + gap_x), wy0 + row * (card_h + gap_y), card_w, card_h)
+        buttons[f"warp_{i}"] = wrect
+        hover = wrect.collidepoint(mx, my)
+        is_cur = (i == session.current_level_idx)
+
+        theme = LEVELS[i].theme
+        if "pool" in theme:
+            bg_c = (235, 250, 255) if hover else (220, 242, 255)
+            bd_c = (255, 195, 45) if is_cur else (45, 120, 180)
+        elif theme == "night":
+            bg_c = (240, 235, 255) if hover else (225, 220, 240)
+            bd_c = (255, 195, 45) if is_cur else (110, 85, 160)
+        else:
+            bg_c = (255, 252, 235) if hover else (240, 245, 220)
+            bd_c = (255, 195, 45) if is_cur else (80, 135, 60)
+
+        pygame.draw.rect(surface, bg_c, wrect, border_radius=8)
+        border_thickness = 3 if is_cur or hover else 1
+        pygame.draw.rect(surface, bd_c, wrect, border_thickness, border_radius=8)
+
+        # Card Content
+        lvl_num_lbl = font_card_title.render(f"第 {i + 1:02d} 关", True, (160, 80, 20) if is_cur else (60, 45, 30))
+        surface.blit(lvl_num_lbl, (wrect.x + 8, wrect.y + 6))
+
+        tag_text = "[当前关卡]" if is_cur else ("[泳池水面]" if "pool" in theme else ("[暗夜墓地]" if "night" in theme else "[白天草坪]"))
+        tag_col = (200, 120, 20) if is_cur else ((30, 100, 160) if "pool" in theme else (80, 110, 70))
+        tag_lbl = font_tiny.render(tag_text, True, tag_col)
+        surface.blit(tag_lbl, (wrect.right - tag_lbl.get_width() - 8, wrect.y + 8))
+
+        # Level name
+        name_lbl = font_desc.render(LEVELS[i].name[:12], True, (40, 30, 20))
+        surface.blit(name_lbl, (wrect.x + 8, wrect.y + 28))
+
+        # Zombie count info
+        wave_str = f"难度: {LEVELS[i].zombie_count} 只僵尸"
+        w_lbl = font_tiny.render(wave_str, True, (110, 95, 75))
+        surface.blit(w_lbl, (wrect.x + 8, wrect.y + 52))
+
+    # Bottom action buttons
+    next_btn = pygame.Rect(box.centerx - 190, box.bottom - 54, 170, 42)
+    buttons["warp_next"] = next_btn
+    pygame.draw.rect(surface, (50, 145, 65), next_btn, border_radius=8)
+    pygame.draw.rect(surface, (255, 220, 90), next_btn, 2, border_radius=8)
+    n_lbl = font_btn.render("下一关 >> [Tab]", True, (255, 255, 255))
+    surface.blit(n_lbl, (next_btn.x + (next_btn.width - n_lbl.get_width()) // 2, next_btn.y + 10))
+
+    close_btn = pygame.Rect(box.centerx + 20, box.bottom - 54, 170, 42)
+    buttons["warp_close"] = close_btn
+    pygame.draw.rect(surface, (140, 60, 50), close_btn, border_radius=8)
+    pygame.draw.rect(surface, (240, 180, 160), close_btn, 2, border_radius=8)
+    c_lbl = font_btn.render("返回战斗 [Esc]", True, (255, 255, 255))
+    surface.blit(c_lbl, (close_btn.x + (close_btn.width - c_lbl.get_width()) // 2, close_btn.y + 10))
 
     return buttons

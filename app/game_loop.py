@@ -15,7 +15,7 @@ from app.renderers.menu import render_menu
 from app.renderers.seed_select import render_seed_select
 from app.renderers.battle import render_battle
 from app.renderers.hud import render_hud
-from app.renderers.overlays import render_pause, render_victory, render_game_over
+from app.renderers.overlays import render_pause, render_victory, render_game_over, render_warp_overlay
 
 
 class GameApp:
@@ -80,6 +80,12 @@ class GameApp:
                     render_battle(canvas, self.controller.world, self.session, mouse_pos)
                     render_hud(canvas, self.controller.world, self.session, mouse_pos, self.controller.hud_rects)
                 overlay_btns = render_game_over(canvas)
+
+            elif mode == "warp":
+                if self.controller.world:
+                    render_battle(canvas, self.controller.world, self.session, mouse_pos)
+                    render_hud(canvas, self.controller.world, self.session, mouse_pos, self.controller.hud_rects)
+                overlay_btns = render_warp_overlay(canvas, self.session, mouse_pos)
 
             # 4. Dispatch events to controller
             for ev in events:

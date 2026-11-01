@@ -27,7 +27,7 @@ from app.renderers.menu import render_menu
 from app.renderers.seed_select import render_seed_select
 from app.renderers.battle import render_battle
 from app.renderers.hud import render_hud
-from app.renderers.overlays import render_pause, render_victory, render_game_over
+from app.renderers.overlays import render_pause, render_victory, render_game_over, render_warp_overlay
 
 
 class TestRenderDryRun(unittest.TestCase):
@@ -73,6 +73,7 @@ class TestRenderDryRun(unittest.TestCase):
             render_pause(self.canvas)
             render_victory(self.canvas, LEVEL_REWARDS[9])
             render_game_over(self.canvas)
+            render_warp_overlay(self.canvas, self.session, mpos)
 
 
 if __name__ == "__main__":

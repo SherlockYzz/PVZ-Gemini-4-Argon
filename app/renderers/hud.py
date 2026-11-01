@@ -113,7 +113,7 @@ def render_hud(
     sh_key = font_tiny.render("[S]", True, (220, 220, 160))
     surface.blit(sh_key, (sh_rect.x + (sh_rect.width - sh_key.get_width()) // 2, sh_rect.y + 40))
 
-    # 5. Buttons (Speed, Pause, Auto-Sun)
+    # 5. Buttons (Speed, Pause, Skip, Auto-Sun)
     # Speed Toggle
     spd_rect = layout_rects.speed_button
     spd_text = "2X" if session.speed_multiplier > 1.0 else "1X"
@@ -129,6 +129,13 @@ def render_hud(
     p_lbl = font_small.render("暂停", True, C_CREAM)
     surface.blit(p_lbl, (p_rect.x + (p_rect.width - p_lbl.get_width()) // 2, p_rect.y + 8))
 
+    # Skip / Warp Button (Golden highlighted portal trigger)
+    sk_rect = layout_rects.skip_button
+    pygame.draw.rect(surface, (75, 52, 28), sk_rect, border_radius=6)
+    pygame.draw.rect(surface, (255, 215, 60), sk_rect, 2, border_radius=6)
+    sk_lbl = font_small.render("跳关", True, (255, 235, 110))
+    surface.blit(sk_lbl, (sk_rect.x + (sk_rect.width - sk_lbl.get_width()) // 2, sk_rect.y + 8))
+
     # Auto-Sun Magnet Toggle
     if session.has_auto_sun:
         as_rect = layout_rects.auto_sun_toggle
@@ -138,7 +145,7 @@ def render_hud(
         border_col = (100, 220, 120) if is_on else (160, 100, 90)
         pygame.draw.rect(surface, border_col, as_rect, 2, border_radius=6)
 
-        label = "自动吸:开 [A]" if is_on else "自动吸:关 [A]"
+        label = "自吸:开 [A]" if is_on else "自吸:关 [A]"
         as_lbl = font_small.render(label, True, (240, 255, 230) if is_on else (220, 180, 170))
         surface.blit(as_lbl, (as_rect.x + (as_rect.width - as_lbl.get_width()) // 2, as_rect.y + 8))
 
