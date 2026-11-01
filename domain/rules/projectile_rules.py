@@ -38,7 +38,7 @@ def _update_straight_projectile(proj: Projectile, world: World, dt: float) -> No
     # Torchwood enhancement: turn pea into flaming pea
     if proj.bullet_type == "pea":
         col, row = world.layout.pos_to_cell(proj.x, proj.y)
-        if (col, row) is not None:
+        if col is not None and row is not None:
             plant = world.get_plant_at(col, row)
             if plant and plant.spec_id == "torchwood":
                 proj.bullet_type = "firepea"

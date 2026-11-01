@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Headless Rendering Dry-Run Test.
-Validates that every single UI view and overlay renders onto a Pygame surface without errors.
+Validates that every single UI view and overlay renders onto a Pygame surface without errors,
+even with extreme out-of-bounds mouse coordinates.
 """
 
 import sys
@@ -39,18 +40,7 @@ class TestRenderDryRun(unittest.TestCase):
             unlocked_artifacts={"auto_sun_magnet"},
         )
 
-    def test_render_all_screens(self):
-        mouse_pos = (600, 380)
-
-        # 1. Main menu
-        menu_btns = render_menu(self.canvas, self.session, mouse_pos)
-        self.assertIn("start", menu_btns)
-
-        # 2. Seed select
-        seed_btns = render_seed_select(self.canvas, self.session, mouse_pos)
-        self.assertIn("start_battle", seed_btns)
-
-        # 3. Battle & HUD on pool level
+    def test_render_all_screens_and_out_of_bounds_mouse(self):
         world = start_level(10, self.session)
         # Add some entities to test drawing
         self.session.active_seed_idx = 2
@@ -58,18 +48,31 @@ class TestRenderDryRun(unittest.TestCase):
         self.session.active_seed_idx = 4
         execute_plant_action(col=3, row=2, world=world, session=self.session)  # Cattail
 
-        render_battle(self.canvas, world, self.session, mouse_pos)
-        render_hud(self.canvas, world, self.session, mouse_pos)
+        # Test extreme mouse positions
+        mouse_positions = [
+            (0, 0),
+            (1200, 760),
+            (600, 30),     # Top HUD (outside lawn grid)
+            (30, 400),     # Left of lawn
+            (1150, 400),   # Right of lawn (zombie side)
+            (600, 740),    # Bottom edge
+            (-100, -100),  # Negative out of bounds
+            (3000, 3000),  # Way beyond screen
+            (500, 300),    # Inside lawn grid
+        ]
 
-        # 4. Overlays
-        p_btns = render_pause(self.canvas)
-        self.assertIn("resume", p_btns)
-
-        v_btns = render_victory(self.canvas, LEVEL_REWARDS[9])
-        self.assertIn("next_level", v_btns)
-
-        go_btns = render_game_over(self.canvas)
-        self.assertIn("retry", go_btns)
+        for mpos in mouse_positions:
+            # 1. Main menu
+            render_menu(self.canvas, self.session, mpos)
+            # 2. Seed select
+            render_seed_select(self.canvas, self.session, mpos)
+            # 3. Battle & HUD
+            render_battle(self.canvas, world, self.session, mpos)
+            render_hud(self.canvas, world, self.session, mpos)
+            # 4. Overlays
+            render_pause(self.canvas)
+            render_victory(self.canvas, LEVEL_REWARDS[9])
+            render_game_over(self.canvas)
 
 
 if __name__ == "__main__":

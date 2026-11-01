@@ -80,8 +80,14 @@ class FieldLayout:
     def get_cell_rect(self, col: int, row: int) -> Tuple[int, int, int, int]:
         return self.cell_rect(col, row)
 
-    def pos_to_cell(self, x: float, y: float) -> Optional[Tuple[int, int]]:
-        return self.cell_at(x, y)
+    def pos_to_cell(self, x: float, y: float) -> Tuple[Optional[int], Optional[int]]:
+        """Invert screen coordinates back to (col, row). Always returns a 2-tuple (col, row) or (None, None).
+        Guarantees that tuple unpacking `col, row = pos_to_cell(...)` NEVER raises TypeError.
+        """
+        cell = self.cell_at(x, y)
+        if cell is None:
+            return (None, None)
+        return cell
 
     def cell_at(self, x: float, y: float) -> Optional[Tuple[int, int]]:
         """Invert screen coordinates back to (col, row). Returns None if out of bounds."""

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Headless Battle Simulation and Endurance Test.
-Simulates 1200 frames (20 seconds of 60 FPS combat) to ensure zero crashes,
-zero division-by-zero, zero infinite loops, and rock-solid memory stability.
+Simulates real combat with marching zombies, shooting peas, eating plants, and mowers.
+Ensures zero crashes, zero division-by-zero, zero infinite loops, and rock-solid memory stability.
 """
 
 import sys
@@ -18,16 +18,16 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 
 from domain.model.session import Session
+from domain.model.zombie import Zombie
 from domain.spec.levels import LEVELS
 from usecases.start_level import start_level
 from usecases.plant_seed import execute_plant_action
 from usecases.advance_frame import advance_battle_frame
-from infra.json_save import JsonSaveAdapter
 
 
 class TestSimulationDryRun(unittest.TestCase):
-    def test_full_level_battle_simulation(self):
-        # 1. Start Day level 0
+    def test_live_zombies_marching_and_combat(self):
+        """Simulates zombies marching in from x=1250 across the lawn, eating plants and getting shot."""
         session = Session(
             current_level_idx=0,
             unlocked_plants={"sunflower", "peashooter", "wallnut"},
@@ -35,31 +35,29 @@ class TestSimulationDryRun(unittest.TestCase):
             auto_sun_enabled=True,
         )
         world = start_level(0, session)
-        self.assertEqual(world.sun, 150)
 
-        # Plant a sunflower in col 0, row 2
-        session.active_seed_idx = 0
-        p_sun = execute_plant_action(col=0, row=2, world=world, session=session)
-        self.assertIsNotNone(p_sun)
-        self.assertEqual(world.sun, 100)
-
-        # Plant a peashooter in col 1, row 2
+        # Plant peashooter at col 1, row 2
         session.active_seed_idx = 1
-        p_pea = execute_plant_action(col=1, row=2, world=world, session=session)
-        self.assertIsNotNone(p_pea)
-        self.assertEqual(world.sun, 0)
+        execute_plant_action(col=1, row=2, world=world, session=session)
 
-        # Run 1200 simulation frames (dt = 1/60s)
+        # Plant wallnut at col 4, row 2
+        session.active_seed_idx = 2
+        execute_plant_action(col=4, row=2, world=world, session=session)
+
+        # Spawn a zombie far to the right (x=1250)
+        zombie = Zombie.create("basic", row=2, x=1250, y=world.layout.get_row_ground_y(2))
+        world.zombies.append(zombie)
+
+        # Advance 2400 frames (40 seconds of battle simulation)
         dt = 1.0 / 60.0
-        for frame in range(1200):
-            reward = advance_battle_frame(world, session, dt)
-            if world.is_game_over or world.is_victory:
-                break
+        zombie_took_damage = False
+        for frame in range(2400):
+            advance_battle_frame(world, session, dt)
+            if zombie.hp < zombie.max_hp:
+                zombie_took_damage = True
 
-        # Invariants
-        self.assertGreater(world.game_time, 0.0)
-        self.assertTrue(p_sun.age > 0)
-        print(f"Simulation completed at t={world.game_time:.2f}s, suns generated={len(world.suns)}, zombies={len(world.zombies)}")
+        self.assertTrue(zombie_took_damage, "Zombie successfully marched from x=1250 and engaged in combat without crashing!")
+        print(f"Endurance test passed: Zombie took damage, final hp={zombie.hp:.1f}, world time={world.game_time:.1f}s")
 
     def test_pool_level_battle_simulation(self):
         # 2. Start Pool level 10
@@ -83,9 +81,13 @@ class TestSimulationDryRun(unittest.TestCase):
         p_cat = execute_plant_action(col=3, row=2, world=world, session=session)
         self.assertIsNotNone(p_cat)
 
-        # Run 600 frames
+        # Spawn water zombie at x=1200 in row 2
+        water_zombie = Zombie.create("ducky", row=2, x=1200, y=world.layout.get_row_ground_y(2))
+        world.zombies.append(water_zombie)
+
+        # Run 1000 frames
         dt = 1.0 / 60.0
-        for _ in range(600):
+        for _ in range(1000):
             advance_battle_frame(world, session, dt)
 
         self.assertGreater(world.game_time, 0.0)

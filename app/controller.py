@@ -232,6 +232,12 @@ class GameController:
                     return
 
     def _handle_overlay_event(self, event: InputEvent, buttons: dict) -> None:
+        if event.kind == "key":
+            if self.mode == "pause" and event.key_name in ("pause", "escape"):
+                self.mode = "battle"
+                self.audio.play_sound("click")
+            return
+
         if event.kind != "click" or not buttons:
             return
 

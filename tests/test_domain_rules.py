@@ -118,6 +118,28 @@ class TestDomainRules(unittest.TestCase):
         self.assertEqual(world.sun, 100)  # 100% full refund!
         self.assertIsNone(world.get_plant_at(0, 0))
 
+    def test_pos_to_cell_out_of_bounds_safety(self):
+        """Validates that out-of-bounds coordinates never crash tuple unpacking."""
+        layout = LAND_LAYOUT
+        # Test out-of-bounds unpacking safety
+        col, row = layout.pos_to_cell(-100, -100)
+        self.assertIsNone(col)
+        self.assertIsNone(row)
+
+        col, row = layout.pos_to_cell(1300, 300)
+        self.assertIsNone(col)
+        self.assertIsNone(row)
+
+        col, row = layout.pos_to_cell(500, 20)  # In top HUD
+        self.assertIsNone(col)
+        self.assertIsNone(row)
+
+        # In-bounds unpacking
+        cx, cy = layout.center(3, 2)
+        col, row = layout.pos_to_cell(cx, cy)
+        self.assertEqual(col, 3)
+        self.assertEqual(row, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

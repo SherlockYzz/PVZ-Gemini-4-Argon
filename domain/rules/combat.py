@@ -279,10 +279,10 @@ def _update_zombies(world: World, dt: float) -> None:
             continue
 
         # 2. Check plant encounters
-        col, row = world.layout.pos_to_cell(z.x - 12, z.y)
         target_plant = None
-        if col is not None and row == z.row:
-            target_plant = world.get_plant_at(col, row)
+        col, _ = world.layout.pos_to_cell(z.x - 12, world.layout.get_row_center_y(z.row))
+        if col is not None:
+            target_plant = world.get_plant_at(col, z.row)
 
         if target_plant and target_plant.is_alive:
             # Special: Hypno-shroom effect when eaten!
