@@ -216,6 +216,8 @@ def get_bullet_surface(freeze: bool = False, size: int = 24, bullet_type: str = 
         "wintermelon": ("winter_melon", int(size * 1.5), int(size * 1.3)),
         "spike": ("cattail_spike", int(size * 1.3), int(size * 0.8)),
         "cattail_spike": ("cattail_spike", int(size * 1.3), int(size * 0.8)),
+        "magic_card": ("magic_card", int(size * 0.9), int(size * 1.25)),
+        "card": ("magic_card", int(size * 0.9), int(size * 1.25)),
         "pea_ice": ("pea_ice", size, size),
         "snowpea": ("pea_ice", size, size),
         "pea": ("pea_normal", size, size),

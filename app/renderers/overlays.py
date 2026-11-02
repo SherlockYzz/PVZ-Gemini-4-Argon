@@ -55,62 +55,88 @@ def render_pause(surface: pygame.Surface) -> dict[str, pygame.Rect]:
 
 def render_victory(surface: pygame.Surface, reward: Optional[LevelReward]) -> dict[str, pygame.Rect]:
     dim = pygame.Surface((1200, 760), pygame.SRCALPHA)
-    dim.fill((0, 0, 0, 180))
+    dim.fill((0, 0, 0, 185))
     surface.blit(dim, (0, 0))
 
-    box = pygame.Rect(320, 120, 560, 500)
-    pygame.draw.rect(surface, (35, 55, 30), box, border_radius=14)
-    pygame.draw.rect(surface, (255, 220, 70), box, 4, border_radius=14)
+    box_w = 660
+    box_h = 510
+    box = pygame.Rect((1200 - box_w) // 2, 110, box_w, box_h)
+    pygame.draw.rect(surface, (34, 48, 28), box, border_radius=16)
+    pygame.draw.rect(surface, (255, 215, 60), box, 4, border_radius=16)
 
     font_huge = get_font(36, bold=True)
     font_mid = get_font(18, bold=True)
     font_small = get_font(14)
+    font_tiny = get_font(12, bold=True)
     sprites = get_sprites()
 
-    t_lbl = font_huge.render("关卡胜利！", True, (255, 235, 80))
-    surface.blit(t_lbl, (box.x + (box.width - t_lbl.get_width()) // 2, box.y + 25))
+    # Title badge
+    t_lbl = font_huge.render("★ 关 卡 大 捷 ★", True, (255, 235, 70))
+    surface.blit(t_lbl, (box.x + (box.width - t_lbl.get_width()) // 2, box.y + 22))
 
-    curr_y = box.y + 85
-    # Show reward plants
-    if reward and reward.plants:
-        p_title = font_mid.render("解锁新植物：", True, (200, 255, 180))
-        surface.blit(p_title, (box.x + 40, curr_y))
-        curr_y += 35
+    has_plants = bool(reward and reward.plants)
+    has_artifact = bool(reward and reward.artifact)
 
-        for p_id in reward.plants:
+    if has_plants:
+        plants = reward.plants
+        p_title = font_mid.render(f"恭喜解锁新植物图鉴 ({len(plants)} 株)：", True, (210, 255, 170))
+        surface.blit(p_title, (box.x + 40, box.y + 78))
+
+        # Horizontal card row
+        n_p = len(plants)
+        card_w, card_h = 56, 72
+        slot_gap = 18
+        row_w = n_p * card_w + (n_p - 1) * slot_gap
+        row_start_x = box.x + (box.width - row_w) // 2
+        cards_y = box.y + 112
+
+        for pi, p_id in enumerate(plants):
+            cx = row_start_x + pi * (card_w + slot_gap)
             spec = PLANTS.get(p_id)
-            if not spec:
-                continue
-            card = sprites.get_card(p_id, (54, 68))
-            if card:
-                surface.blit(card, (box.x + 50, curr_y))
-            name_txt = font_mid.render(spec.name, True, (255, 240, 120))
-            surface.blit(name_txt, (box.x + 120, curr_y + 6))
-            tip_txt = font_small.render(spec.tip[:28], True, (220, 230, 210))
-            surface.blit(tip_txt, (box.x + 120, curr_y + 36))
-            curr_y += 80
+            c_surf = sprites.get_card(p_id, (card_w, card_h))
+            if c_surf:
+                surface.blit(c_surf, (cx, cards_y))
+            else:
+                pygame.draw.rect(surface, (60, 110, 50), (cx, cards_y, card_w, card_h), border_radius=6)
+
+            pygame.draw.rect(surface, (255, 225, 80), (cx, cards_y, card_w, card_h), 2, border_radius=6)
+            name_str = spec.name if spec else p_id
+            name_lbl = font_tiny.render(name_str, True, (255, 240, 160))
+            surface.blit(name_lbl, (cx + (card_w - name_lbl.get_width()) // 2, cards_y + card_h + 6))
 
     # Show reward artifact
-    if reward and reward.artifact:
-        a_title = font_mid.render(f"获得神器：{reward.artifact_name}", True, (255, 215, 0))
-        surface.blit(a_title, (box.x + 40, curr_y))
-        curr_y += 30
-        desc_txt = font_small.render(reward.artifact_desc[:32], True, (255, 230, 160))
-        surface.blit(desc_txt, (box.x + 40, curr_y))
-        curr_y += 60
+    art_y = box.y + 245 if has_plants else box.y + 110
+    if has_artifact:
+        art_box = pygame.Rect(box.x + 35, art_y, box.width - 70, 95)
+        pygame.draw.rect(surface, (55, 42, 20), art_box, border_radius=10)
+        pygame.draw.rect(surface, (255, 215, 60), art_box, 2, border_radius=10)
+
+        a_title = font_mid.render(f"★ 荣获传世神器：【{reward.artifact_name}】★", True, (255, 225, 70))
+        surface.blit(a_title, (art_box.x + (art_box.width - a_title.get_width()) // 2, art_box.y + 14))
+
+        desc_txt = font_small.render(reward.artifact_desc[:44], True, (255, 235, 180))
+        surface.blit(desc_txt, (art_box.x + (art_box.width - desc_txt.get_width()) // 2, art_box.y + 46))
+
+    if not has_plants and not has_artifact:
+        congrats_y = box.y + 170
+        cg_lbl1 = font_mid.render("草坪与泳池在你的英明指挥下固若金汤！", True, (220, 255, 200))
+        surface.blit(cg_lbl1, (box.x + (box.width - cg_lbl1.get_width()) // 2, congrats_y))
+        cg_lbl2 = font_small.render("击溃尸潮侵袭，向着更深远的庭院荣耀进发吧！", True, (180, 220, 190))
+        surface.blit(cg_lbl2, (box.x + (box.width - cg_lbl2.get_width()) // 2, congrats_y + 40))
 
     buttons: dict[str, pygame.Rect] = {}
-    next_btn = pygame.Rect(box.x + 80, box.bottom - 80, 180, 50)
+    btn_y = box.bottom - 78
+    next_btn = pygame.Rect(box.x + 80, btn_y, 220, 50)
     buttons["next_level"] = next_btn
-    pygame.draw.rect(surface, (60, 140, 50), next_btn, border_radius=8)
-    pygame.draw.rect(surface, (160, 240, 120), next_btn, 2, border_radius=8)
-    nxt_lbl = font_mid.render("下一关", True, (255, 255, 255))
+    pygame.draw.rect(surface, (50, 140, 55), next_btn, border_radius=10)
+    pygame.draw.rect(surface, (160, 250, 130), next_btn, 2, border_radius=10)
+    nxt_lbl = font_mid.render("进入下一关 >>", True, (255, 255, 255))
     surface.blit(nxt_lbl, (next_btn.x + (next_btn.width - nxt_lbl.get_width()) // 2, next_btn.y + 14))
 
-    menu_btn = pygame.Rect(box.right - 260, box.bottom - 80, 180, 50)
+    menu_btn = pygame.Rect(box.right - 300, btn_y, 220, 50)
     buttons["menu"] = menu_btn
-    pygame.draw.rect(surface, (110, 60, 45), menu_btn, border_radius=8)
-    pygame.draw.rect(surface, (220, 140, 100), menu_btn, 2, border_radius=8)
+    pygame.draw.rect(surface, (120, 55, 45), menu_btn, border_radius=10)
+    pygame.draw.rect(surface, (230, 140, 120), menu_btn, 2, border_radius=10)
     m_lbl = font_mid.render("返回主菜单", True, (255, 255, 255))
     surface.blit(m_lbl, (menu_btn.x + (menu_btn.width - m_lbl.get_width()) // 2, menu_btn.y + 14))
 

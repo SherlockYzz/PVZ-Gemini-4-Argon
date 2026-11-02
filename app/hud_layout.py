@@ -20,7 +20,16 @@ class HudRects:
     progress_bar: pygame.Rect
 
 
+# Seed belt capacity is data-driven by Session.max_seed_slots (8 / 9 / 10).
+MIN_HUD_SLOTS: int = 1
+MAX_HUD_SLOTS: int = 10
+
+
 def compute_hud_layout(max_slots: int = 8) -> HudRects:
+    # Defensive clamp: a corrupted save or a future artifact must never produce
+    # an empty/overlapping layout, since callers index card_slots by slot id.
+    max_slots = max(MIN_HUD_SLOTS, min(MAX_HUD_SLOTS, int(max_slots)))
+
     sun_counter = pygame.Rect(10, 8, 118, 76)
 
     card_slots = []

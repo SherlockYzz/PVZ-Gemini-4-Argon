@@ -92,13 +92,32 @@ def _update_straight_projectile(proj: Projectile, world: World, dt: float) -> No
             if proj.bullet_type == "firepea":
                 z.slow_timer = 0.0  # Fire melts ice!
 
-            # Card special perk: 25% chance of bonus effect
-            if proj.bullet_type == "card" and random.random() < 0.25:
-                if random.random() < 0.5:
+            # Magic-shroom Magic Card: Charm & Trick spell!
+            if proj.bullet_type in ("magic_card", "card"):
+                # 35% chance to charm/hypnotize zombie!
+                if z.spec_id not in ("gargantuar",) and random.random() < 0.35:
                     z.hypnotize()
+                    world.floating_texts.append(FloatingText("魔术戏法·反戈魅惑!", z.x, z.y - 30, (230, 130, 255)))
+                    for _ in range(8):
+                        world.particles.append(
+                            CombatParticle(
+                                kind="magic",
+                                x=z.x + random.uniform(-15, 15),
+                                y=z.y - random.uniform(20, 50),
+                                vx=random.uniform(-40, 40),
+                                vy=random.uniform(-40, 10),
+                                color=(235, 120, 255),
+                                size=random.uniform(5.0, 8.0),
+                                lifetime=0.3,
+                            )
+                        )
                 else:
-                    world.sun += 25
-                    world.floating_texts.append(FloatingText("+25", z.x, z.y - 20, (255, 235, 60)))
+                    if random.random() < 0.5:
+                        world.sun += 25
+                        world.floating_texts.append(FloatingText("+25 阳光!", z.x, z.y - 25, (255, 235, 60)))
+                    else:
+                        proj.damage += 20.0
+                        world.floating_texts.append(FloatingText("暴击扑克!", z.x, z.y - 25, (255, 130, 190)))
 
             apply_damage(z, proj.damage, slow_duration=slow_sec)
 

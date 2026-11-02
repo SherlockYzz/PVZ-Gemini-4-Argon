@@ -91,13 +91,18 @@ LEVEL_REWARDS: dict[int, LevelReward] = {
         artifact_name="镀金清扫车",
         artifact_desc="华丽镀金清扫车！当割草机或泳池清扫机被触发碾压时，额外爆落 200 点阳光！",
     ),
-    12: LevelReward(plants=["garlic", "cattail", "twinsunflower"]),
+    12: LevelReward(
+        plants=["garlic", "cattail", "twinsunflower"],
+        artifact="belt_9",
+        artifact_name="九格战术腰带",
+        artifact_desc="精锐战术腰带！通关倒数第四关解锁，出战卡槽容量永久扩充至 9 格！",
+    ),
     13: LevelReward(plants=["starfruit", "agave", "gatlingpea"]),
     14: LevelReward(
         plants=["melonpult", "tallnut", "magicshroom", "laserbean"],
         artifact="master_belt",
-        artifact_name="大师战术腰带",
-        artifact_desc="顶级战术大师腰带！出战卡槽容量永久扩充至 10 格！",
+        artifact_name="十格大师腰带",
+        artifact_desc="顶级战术大师腰带！通关倒数第二关解锁，出战卡槽容量永久扩充至 10 格！",
     ),
     15: LevelReward(plants=["wintermelon", "gatlingpea", "cobcannon"]),
 }

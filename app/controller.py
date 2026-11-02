@@ -32,11 +32,30 @@ class GameController:
 
         self.mode = "menu"  # "menu", "seed_select", "battle", "pause", "victory", "game_over", "warp"
         self.world: Optional[World] = None
-        self.hud_rects: HudRects = compute_hud_layout(session.max_seed_slots)
         self.latest_reward: Optional[LevelReward] = None
+
+        # HUD geometry depends on the live belt capacity, which grows mid-session
+        # when a belt artifact is unlocked (8 -> 9 -> 10 slots). Caching it once in
+        # __init__ made the renderer index a stale, shorter card_slots list and crash
+        # with IndexError. Cache it but invalidate whenever the capacity changes.
+        self._hud_rects_cache: Optional[HudRects] = None
+        self._hud_rects_slot_count: int = -1
 
         # Play title music
         self.audio.play_music("menu")
+
+    @property
+    def hud_rects(self) -> HudRects:
+        """HUD hit-boxes, kept in sync with the live seed belt capacity.
+
+        Session.max_seed_slots changes at runtime (belt artifacts / retroactive
+        skip rewards), so this must never be a frozen value computed at boot.
+        """
+        slot_count = self.session.max_seed_slots
+        if self._hud_rects_cache is None or self._hud_rects_slot_count != slot_count:
+            self._hud_rects_cache = compute_hud_layout(slot_count)
+            self._hud_rects_slot_count = slot_count
+        return self._hud_rects_cache
 
     def handle_event(self, event: InputEvent, menu_buttons: dict = None, seed_buttons: dict = None, overlay_buttons: dict = None) -> None:
         if event.kind == "fullscreen":
@@ -139,6 +158,7 @@ class GameController:
         self.audio.play_music(music_track)
 
     def _start_battle(self) -> None:
+        self._hud_rects = compute_hud_layout(self.session.max_seed_slots)
         self.world = start_level(self.session.current_level_idx, self.session)
         self.mode = "battle"
         self._sync_music_for_level()
@@ -366,6 +386,7 @@ class GameController:
         if self.world.is_victory:
             self.mode = "victory"
             self.latest_reward = reward
+            self._hud_rects = compute_hud_layout(self.session.max_seed_slots)
             self.audio.play_sound("win")
             self.storage.save(self.session)
         elif self.world.is_game_over:

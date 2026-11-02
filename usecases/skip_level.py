@@ -36,10 +36,13 @@ def skip_to_level(target_level_idx: int, session: Session) -> World:
             if reward.artifact and reward.artifact not in session.unlocked_artifacts:
                 session.unlocked_artifacts.add(reward.artifact)
 
-    # 2. Endless Mode Grand Slam
+    # 2. Endless Mode Grand Slam & Artifact guarantees
     if target_level_idx >= 15:
         session.unlocked_plants.update(UNLOCK_ORDER)
         session.unlocked_artifacts.add("master_belt")
+        session.unlocked_artifacts.add("belt_9")
+    elif target_level_idx >= 13:
+        session.unlocked_artifacts.add("belt_9")
 
     # 3. Water lane carrier guarantee
     if level_spec.is_pool and "lilypad" not in session.unlocked_plants:

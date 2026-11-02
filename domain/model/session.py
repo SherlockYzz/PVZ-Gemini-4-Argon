@@ -32,7 +32,13 @@ class Session:
 
     @property
     def max_seed_slots(self) -> int:
-        return 10 if "master_belt" in self.unlocked_artifacts else 8
+        # 倒数第二关打通后 (Level 14 completed -> highest_level >= 15 or master_belt unlocked) 变成 10 格
+        if "master_belt" in self.unlocked_artifacts or self.highest_level >= 15:
+            return 10
+        # 倒数第四关打通后 (Level 12 completed -> highest_level >= 13 or belt_9 unlocked) 变成 9 格
+        if "belt_9" in self.unlocked_artifacts or self.highest_level >= 13:
+            return 9
+        return 8
 
     @property
     def has_auto_sun(self) -> bool:

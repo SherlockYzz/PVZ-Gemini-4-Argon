@@ -275,6 +275,19 @@ def render_battle(
         elif p.bullet_type == "spike":
             # Cattail needle
             pygame.draw.line(surface, (220, 100, 140), (p.x - 8 + ox, p.y + oy), (p.x + 8 + ox, p.y + oy), 3)
+        elif p.bullet_type in ("magic_card", "card"):
+            # Mystical rotating card & purple aura
+            glow_surf = pygame.Surface((32, 36), pygame.SRCALPHA)
+            pygame.draw.ellipse(glow_surf, (190, 80, 240, 75), (0, 0, 32, 36))
+            surface.blit(glow_surf, (p.x - 16 + ox, p.y - 18 + oy))
+            b_surf = sprites.get_bullet("magic_card", size=24)
+            if b_surf:
+                surface.blit(b_surf, (p.x - b_surf.get_width() // 2 + ox, p.y - b_surf.get_height() // 2 + oy))
+            else:
+                card_rect = pygame.Rect(p.x - 9 + ox, p.y - 12 + oy, 18, 24)
+                pygame.draw.rect(surface, (250, 245, 235), card_rect, border_radius=3)
+                pygame.draw.rect(surface, (215, 175, 45), card_rect, 2, border_radius=3)
+                pygame.draw.circle(surface, (190, 60, 220), (int(p.x + ox), int(p.y + oy)), 4)
         else:
             is_fire = p.bullet_type in ("firepea", "fire_pea")
             is_freeze = p.bullet_type in ("snowpea", "pea_ice")

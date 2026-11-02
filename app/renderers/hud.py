@@ -22,7 +22,7 @@ def render_hud(
     mouse_pos: tuple[float, float],
     layout_rects: Optional[HudRects] = None,
 ) -> None:
-    if layout_rects is None:
+    if layout_rects is None or len(layout_rects.card_slots) != session.max_seed_slots:
         layout_rects = compute_hud_layout(session.max_seed_slots)
 
     sprites = get_sprites()
@@ -51,8 +51,9 @@ def render_hud(
     sun_text = font_bold.render(str(world.sun), True, C_SUN)
     surface.blit(sun_text, (sc_rect.x + 54, sc_rect.y + 24))
 
-    # 3. Card Slots
-    for i in range(session.max_seed_slots):
+    # 3. Card Slots (defensive bounds to completely eliminate IndexError)
+    num_slots = min(session.max_seed_slots, len(layout_rects.card_slots))
+    for i in range(num_slots):
         rect = layout_rects.card_slots[i]
         # Slot frame
         pygame.draw.rect(surface, (32, 22, 16), rect, border_radius=6)
@@ -97,8 +98,9 @@ def render_hud(
             cost_lbl = font_tiny.render(str(spec.cost), True, C_SUN)
             surface.blit(cost_lbl, (rect.right - cost_lbl.get_width() - 4, rect.bottom - 16))
 
-            # Key shortcut hint (1..8)
-            key_hint = font_tiny.render(str(i + 1), True, (190, 190, 190))
+            # Key shortcut hint (1..9, 0 for 10th slot)
+            hint_str = "0" if i == 9 else str(i + 1)
+            key_hint = font_tiny.render(hint_str, True, (190, 190, 190))
             surface.blit(key_hint, (rect.x + 4, rect.y + 3))
 
     # 4. Shovel Button

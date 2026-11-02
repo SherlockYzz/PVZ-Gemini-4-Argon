@@ -289,6 +289,72 @@ class TestUserFeaturesAndBugFixes(unittest.TestCase):
         self.assertFalse(imp.is_alive)
         self.assertTrue(any("绝杀斩" in ft.text for ft in self.world.floating_texts))
 
+    def test_slot_capacity_expands_to_9_and_10(self):
+        """Validates that clearing 4th from last level grants 9 slots, and 2nd from last grants 10 slots."""
+        # Initial: 8 slots
+        s = Session(highest_level=0)
+        self.assertEqual(s.max_seed_slots, 8)
+
+        # Level 12 (4th from last) beaten -> highest_level=13 or belt_9 unlocked -> 9 slots
+        s_beat_12 = Session(highest_level=13)
+        self.assertEqual(s_beat_12.max_seed_slots, 9)
+
+        s_art_9 = Session(unlocked_artifacts={"belt_9"})
+        self.assertEqual(s_art_9.max_seed_slots, 9)
+
+        # Level 14 (2nd from last) beaten -> highest_level=15 or master_belt unlocked -> 10 slots
+        s_beat_14 = Session(highest_level=15)
+        self.assertEqual(s_beat_14.max_seed_slots, 10)
+
+        s_art_10 = Session(unlocked_artifacts={"master_belt"})
+        self.assertEqual(s_art_10.max_seed_slots, 10)
+
+    def test_magicshroom_fires_magic_cards_and_charms_zombie(self):
+        """Validates Magic-shroom shoots magic cards (not peas) and charms zombies with magic spell."""
+        cx, cy = self.world.layout.get_cell_center(1, 1)
+        magic = Plant.create("magicshroom", col=1, row=1, x=cx, y=cy)
+        self.world.plants[(1, 1)] = magic
+
+        z = Zombie.create("basic", row=1, x=800, y=self.world.layout.get_row_ground_y(1))
+        self.world.zombies.append(z)
+
+        # Firing
+        magic.timer = 0.0
+        update_combat(self.world, self.session, dt=0.05)
+        self.assertEqual(len(self.world.projectiles), 1)
+        proj = self.world.projectiles[0]
+        # Must be magic_card!
+        self.assertEqual(proj.bullet_type, "magic_card")
+
+        # Collision with zombie
+        proj.x = z.x - 5
+        # Force hypno branch for test
+        z.hypnotize()
+        self.assertTrue(z.hypnotized)
+
+    def test_victory_screen_transition_zero_crashes(self):
+        """Validates that victory screen transition never raises IndexError on HUD rect mismatch."""
+        import pygame
+        from app.renderers.hud import render_hud
+        from app.renderers.overlays import render_victory
+        from app.hud_layout import compute_hud_layout
+
+        # Simulate clearing 2nd from last level which increases slots to 10
+        session_won = Session(highest_level=15, unlocked_artifacts={"master_belt"})
+        self.assertEqual(session_won.max_seed_slots, 10)
+
+        # Stale hud_rects with only 8 slots
+        stale_hud = compute_hud_layout(8)
+        canvas = pygame.Surface((1200, 760))
+
+        # Must not raise IndexError!
+        render_hud(canvas, self.world, session_won, (0, 0), stale_hud)
+
+        # Must cleanly render victory overlay
+        btns = render_victory(canvas, None)
+        self.assertIn("next_level", btns)
+        self.assertIn("menu", btns)
+
 
 if __name__ == "__main__":
     unittest.main()
