@@ -17,6 +17,7 @@ class PlacementRule(Enum):
     UPGRADE_SUN = auto()     # Upgrade from Sunflower (TwinSunflower)
     UPGRADE_REPEATER = auto()# Upgrade from Repeater (GatlingPea)
     UPGRADE_LILYPAD = auto() # Upgrade from Lilypad (Cattail)
+    UPGRADE_SPIKEWEED = auto()# Upgrade from Spikeweed (Spikerock)
 
 
 class BehaviorKind(Enum):
@@ -254,6 +255,19 @@ PLANTS: dict[str, PlantSpec] = {
         behavior=BehaviorSpec(kind=BehaviorKind.HOMING, interval=1.4, damage=20.0, burst_count=2, bullet_type="cattail_spike"),
         tip="猫尾草：种在睡莲上，全场智能追踪发射飞刺，气球杀手！",
         upgrade_from="lilypad",
+    ),
+    "spikerock": PlantSpec(
+        id="spikerock", name="地刺王", cost=125, cooldown=25.0, max_hp=900,
+        placement=PlacementRule.UPGRADE_SPIKEWEED,
+        behavior=BehaviorSpec(kind=BehaviorKind.AURA, interval=1.0, damage=60.0),
+        tip="地刺王：种在地刺上，造成双倍高额穿刺伤害，且能抗住巨人和车轮多次碾压！",
+        upgrade_from="spikeweed",
+    ),
+    "splitpea": PlantSpec(
+        id="splitpea", name="双向射手", cost=125, cooldown=7.5, max_hp=300,
+        placement=PlacementRule.LAND_ONLY,
+        behavior=BehaviorSpec(kind=BehaviorKind.SHOOTER, interval=1.4, damage=20.0, bullet_type="pea"),
+        tip="双向射手：前后双向索敌，向前发射单发豌豆，向后猛烈连射双发豌豆！",
     ),
     "cobcannon": PlantSpec(
         id="cobcannon", name="玉米加农炮", cost=500, cooldown=30.0, max_hp=1200,

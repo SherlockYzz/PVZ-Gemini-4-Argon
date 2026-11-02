@@ -215,6 +215,8 @@ def get_bullet_surface(freeze: bool = False, size: int = 24, bullet_type: str = 
         "winter_melon": ("winter_melon", int(size * 1.5), int(size * 1.3)),
         "wintermelon": ("winter_melon", int(size * 1.5), int(size * 1.3)),
         "spike": ("cattail_spike", int(size * 1.3), int(size * 0.8)),
+        "cob_missile": ("kernel", int(size * 2.2), int(size * 1.6)),
+        "cob": ("kernel", int(size * 2.2), int(size * 1.6)),
         "cattail_spike": ("cattail_spike", int(size * 1.3), int(size * 0.8)),
         "magic_card": ("magic_card", int(size * 0.9), int(size * 1.25)),
         "card": ("magic_card", int(size * 0.9), int(size * 1.25)),
@@ -395,6 +397,12 @@ def render_plant_sprite(
     elif plant_type == "starfruit":
         target_h = int(82 * scale)
         y_offset = 2 * scale
+    elif plant_type == "splitpea":
+        target_h = int(88 * scale)
+        y_offset = 2 * scale
+    elif plant_type == "spikerock":
+        target_h = int(54 * scale)
+        y_offset = 18 * scale
     if target_w is None:
         ratio = target_h / max(1, base_h)
         target_w = int(base_w * ratio)

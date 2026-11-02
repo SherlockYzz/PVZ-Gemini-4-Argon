@@ -29,7 +29,7 @@ def _update_straight_projectile(proj: Projectile, world: World, dt: float) -> No
     step = proj.vx * dt
     proj.x += step
     proj.y += proj.vy * dt
-    proj.range_traveled += step
+    proj.range_traveled += abs(step)
 
     if proj.range_traveled >= proj.max_range or proj.x > 1250 or proj.x < -50:
         proj.alive = False
@@ -92,7 +92,8 @@ def _update_straight_projectile(proj: Projectile, world: World, dt: float) -> No
             if proj.bullet_type == "firepea":
                 z.slow_timer = 0.0  # Fire melts ice!
 
-            # Magic-shroom Magic Card: Charm & Trick spell!
+            # Magic-shroom Magic Card: authentic charm & trick spell
+            actual_damage = proj.damage
             if proj.bullet_type in ("magic_card", "card"):
                 # 35% chance to charm/hypnotize zombie!
                 if z.spec_id not in ("gargantuar",) and random.random() < 0.35:
@@ -116,10 +117,10 @@ def _update_straight_projectile(proj: Projectile, world: World, dt: float) -> No
                         world.sun += 25
                         world.floating_texts.append(FloatingText("+25 阳光!", z.x, z.y - 25, (255, 235, 60)))
                     else:
-                        proj.damage += 20.0
+                        actual_damage += 20.0
                         world.floating_texts.append(FloatingText("暴击扑克!", z.x, z.y - 25, (255, 130, 190)))
 
-            apply_damage(z, proj.damage, slow_duration=slow_sec)
+            apply_damage(z, actual_damage, slow_duration=slow_sec)
 
             # Hit visual particle
             color = (140, 220, 255) if proj.bullet_type == "snowpea" else (255, 120, 40) if proj.bullet_type == "firepea" else (180, 240, 100)
@@ -152,7 +153,7 @@ def _detonate_lobbed_impact(proj: Projectile, world: World) -> None:
     bullet_type = proj.bullet_type
 
     # Heavy Cob Cannon detonation
-    if bullet_type == "cob":
+    if bullet_type in ("cob", "cob_missile"):
         world.shake.trigger(magnitude=14.0, duration=0.4)
         for z in world.zombies:
             if z.is_alive and not z.hypnotized:

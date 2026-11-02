@@ -47,13 +47,13 @@ class InputHandler:
                     events.append(InputEvent(kind="key", key_name="shovel"))
                 elif e.key == pygame.K_a:
                     events.append(InputEvent(kind="key", key_name="auto_sun"))
-                elif e.key == pygame.K_SPACE:
+                elif e.key in (pygame.K_SPACE, pygame.K_p):
                     events.append(InputEvent(kind="key", key_name="pause"))
                 elif e.key == pygame.K_ESCAPE:
                     events.append(InputEvent(kind="key", key_name="escape"))
-                elif e.key in (pygame.K_TAB, pygame.K_n):
+                elif e.key in (pygame.K_TAB, pygame.K_n, pygame.K_RIGHTBRACKET):
                     events.append(InputEvent(kind="key", key_name="skip_next"))
-                elif e.key == pygame.K_p:
+                elif e.key in (pygame.K_LEFTBRACKET, pygame.K_PAGEUP):
                     events.append(InputEvent(kind="key", key_name="skip_prev"))
                 elif e.key == pygame.K_l:
                     events.append(InputEvent(kind="key", key_name="toggle_warp"))

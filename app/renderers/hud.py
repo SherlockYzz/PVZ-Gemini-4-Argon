@@ -77,7 +77,7 @@ def render_hud(
             # Cooldown shadow mask
             cd = session.seed_cooldowns.get(spec_id, 0.0)
             if cd > 0:
-                cd_ratio = min(1.0, cd / spec.cooldown)
+                cd_ratio = min(1.0, max(0.0, cd / spec.cooldown)) if spec.cooldown > 0 else 0.0
                 mask_h = int(rect.height * cd_ratio)
                 cd_rect = pygame.Rect(rect.x, rect.bottom - mask_h, rect.width, mask_h)
                 s = pygame.Surface((rect.width, mask_h), pygame.SRCALPHA)

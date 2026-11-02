@@ -5,7 +5,7 @@ Coordinates viewport, inputs, audio, controller state, and 60 FPS presentation.
 
 import sys
 import pygame
-from config.tuning import FPS
+from config.tuning import FPS, BASE_DIR
 from infra.pygame_viewport import Viewport
 from infra.pygame_input import InputHandler
 from infra.pygame_audio import PygameAudioAdapter
@@ -16,6 +16,11 @@ from app.renderers.seed_select import render_seed_select
 from app.renderers.battle import render_battle
 from app.renderers.hud import render_hud
 from app.renderers.overlays import render_pause, render_victory, render_game_over, render_warp_overlay
+
+# A frame that raises this many times in a row is not a recoverable hiccup:
+# stop instead of spinning at 60 FPS writing an unbounded crash log.
+MAX_CONSECUTIVE_ERRORS = 300
+CRASH_LOG = BASE_DIR / "crash_recovery.log"
 
 
 class GameApp:
@@ -31,6 +36,35 @@ class GameApp:
         self.session = self.storage.load()
         self.controller = GameController(self.session, self.audio, self.storage)
         self.is_running = True
+
+        # Crash telemetry: log each distinct failure signature once, then just count.
+        self._seen_errors: dict[str, int] = {}
+        self._consecutive_errors = 0
+
+    def _report_error(self, exc: Exception) -> None:
+        """Persist a crash once per distinct signature; never grow the log unbounded."""
+        import traceback
+
+        tb = exc.__traceback__
+        while tb and tb.tb_next:
+            tb = tb.tb_next
+        frame = tb.tb_frame if tb else None
+        lineno = tb.tb_lineno if tb else 0
+        signature = f"{type(exc).__name__}:{frame.f_code.co_filename if frame else '?'}:{lineno}:{exc}"
+        count = self._seen_errors.get(signature, 0) + 1
+        self._seen_errors[signature] = count
+
+        print(f"[ERROR] GameLoop Exception caught safely: {exc}", file=sys.stderr)
+        if count > 1:
+            # Already reported this exact failure; keep the log readable.
+            return
+        traceback.print_exc()
+        try:
+            with open(CRASH_LOG, "a", encoding="utf-8") as lf:
+                lf.write(f"\n--- {signature} ---\n")
+                traceback.print_exc(file=lf)
+        except Exception:
+            pass
 
     def run(self) -> None:
         menu_btns = {}
@@ -103,18 +137,17 @@ class GameApp:
 
                 # 4. Present Canvas
                 self.viewport.present()
+                self._consecutive_errors = 0
 
             except Exception as e:
-                import traceback
-                print(f"[ERROR] GameLoop Exception caught safely: {e}", file=sys.stderr)
-                traceback.print_exc()
-                try:
-                    with open("crash_recovery.log", "a", encoding="utf-8") as lf:
-                        lf.write(f"\n--- {e} ---\n")
-                        traceback.print_exc(file=lf)
-                except Exception:
-                    pass
-                self.storage.save(self.session)
+                self._consecutive_errors += 1
+                self._report_error(e)
+                if self._consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    print(
+                        f"[FATAL] {MAX_CONSECUTIVE_ERRORS} consecutive frame errors; aborting cleanly.",
+                        file=sys.stderr,
+                    )
+                    break
 
         # Shutdown & Save
         self.storage.save(self.session)

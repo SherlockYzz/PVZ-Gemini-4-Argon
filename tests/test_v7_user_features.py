@@ -355,6 +355,132 @@ class TestUserFeaturesAndBugFixes(unittest.TestCase):
         self.assertIn("next_level", btns)
         self.assertIn("menu", btns)
 
+    def test_splitpea_dual_shooting_forward_and_backward(self):
+        """Validates Splitpea shoots 1 pea forward and 2 burst peas backward."""
+        cx, cy = self.world.layout.get_cell_center(3, 1)
+        splitpea = Plant.create("splitpea", col=3, row=1, x=cx, y=cy)
+        self.world.plants[(3, 1)] = splitpea
+
+        # 1. Spawn zombie behind (to the left)
+        z_back = Zombie.create("basic", row=1, x=cx - 80, y=self.world.layout.get_row_ground_y(1))
+        # 2. Spawn zombie in front (to the right)
+        z_front = Zombie.create("basic", row=1, x=cx + 120, y=self.world.layout.get_row_ground_y(1))
+        self.world.zombies.extend([z_back, z_front])
+
+        splitpea.timer = 0.0
+        update_combat(self.world, self.session, dt=0.033)
+
+        # Must have fired both forward (vx > 0) and backward (vx < 0)
+        vxs = [p.vx for p in self.world.projectiles]
+        self.assertTrue(any(vx > 0 for vx in vxs), "Must shoot forward!")
+        self.assertTrue(any(vx < 0 for vx in vxs), "Must shoot backward!")
+
+        # Advance for 2nd backward burst pea
+        update_combat(self.world, self.session, dt=0.16)
+        backward_peas = [p for p in self.world.projectiles if p.vx < 0]
+        self.assertGreaterEqual(len(backward_peas), 2, "Must fire 2 burst peas backward!")
+
+    def test_cobcannon_artillery_global_bombardment(self):
+        """Validates Cob Cannon launches global 1800 damage nuclear cob missile."""
+        from domain.rules.projectile_rules import update_projectiles
+        cx, cy = self.world.layout.get_cell_center(1, 0)
+        cob = Plant.create("cobcannon", col=1, row=0, x=cx, y=cy)
+        self.world.plants[(1, 0)] = cob
+
+        # Zombie is in row 3 (different lane!)
+        z_distant = Zombie.create("bucket", row=3, x=700, y=self.world.layout.get_row_ground_y(3))
+        self.world.zombies.append(z_distant)
+
+        cob.timer = 0.0
+        update_combat(self.world, self.session, dt=0.05)
+
+        # Cob missile must have launched across lanes towards row 3
+        cobs = [p for p in self.world.projectiles if p.bullet_type == "cob_missile"]
+        self.assertEqual(len(cobs), 1)
+        missile = cobs[0]
+        self.assertEqual(missile.damage, 1800.0)
+
+        # Fast forward projectile flight to impact
+        missile.flight_t = 1.0
+        update_projectiles(self.world, dt=0.05)
+
+        # Target buckethead zombie (1300 HP) must be completely vaporized by 1800 ash damage!
+        self.assertFalse(z_distant.is_alive)
+
+    def test_spikerock_upgrade_and_high_damage(self):
+        """Validates Spikerock upgrade from Spikeweed and deals 70 DPS bypassing shields."""
+        # Use row 0 (land lane)
+        cx, cy = self.world.layout.get_cell_center(2, 0)
+        # 1. Base spikeweed
+        spikeweed = Plant.create("spikeweed", col=2, row=0, x=cx, y=cy)
+        self.world.plants[(2, 0)] = spikeweed
+
+        # 2. Upgrade to spikerock
+        can_up, _ = can_plant("spikerock", 2, 0, self.world, self.session)
+        self.assertTrue(can_up)
+        spikerock = perform_plant("spikerock", 2, 0, self.world, self.session)
+        self.assertIsNotNone(spikerock)
+        self.assertEqual(spikerock.spec_id, "spikerock")
+
+        # 3. Zombie walks over spikerock
+        z = Zombie.create("cone", row=0, x=cx + 10, y=self.world.layout.get_row_ground_y(0))
+        self.world.zombies.append(z)
+        update_combat(self.world, self.session, dt=1.0)
+        # Must have taken 70 direct damage directly to zombie body bypassing shield
+        self.assertAlmostEqual(z.hp, 200.0 - 70.0, delta=5.0)
+
+    def test_save_load_schema_and_type_safety(self):
+        """Validates JsonSaveAdapter type-casting safety on corrupted input and full preferences persistence."""
+        from infra.json_save import JsonSaveAdapter
+        import tempfile
+        import json
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as tf:
+            # Corrupted strings in numeric fields
+            json.dump({
+                "current_level": "invalid_str",
+                "highest_level": "999",
+                "speed_multiplier": 2.5,
+                "is_fullscreen": True
+            }, tf)
+            tmp_path = Path(tf.name)
+
+        try:
+            adapter = JsonSaveAdapter(tmp_path)
+            s = adapter.load()
+            # Must fallback to safe integer within bounds (0 to 15)
+            self.assertEqual(s.current_level_idx, 0)
+            self.assertEqual(s.highest_level, 15)
+            self.assertEqual(s.speed_multiplier, 2.5)
+            self.assertTrue(s.is_fullscreen)
+
+            # Test round-trip save
+            s.speed_multiplier = 1.5
+            s.sound_enabled = False
+            adapter.save(s)
+            s_reloaded = adapter.load()
+            self.assertEqual(s_reloaded.speed_multiplier, 1.5)
+            self.assertFalse(s_reloaded.sound_enabled)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    def test_hud_zero_cooldown_safety(self):
+        """Validates HUD renderer never throws ZeroDivisionError when cooldown is 0."""
+        import pygame
+        from app.renderers.hud import render_hud
+        canvas = pygame.Surface((1200, 760))
+        # Custom zero cooldown
+        self.session.seed_cooldowns["sunflower"] = 5.0
+        # Temporarily mock sunflower spec cooldown to 0
+        from domain.spec.plants import PLANTS
+        orig_cd = PLANTS["sunflower"].cooldown
+        object.__setattr__(PLANTS["sunflower"], "cooldown", 0.0)
+        try:
+            # Must not crash!
+            render_hud(canvas, self.world, self.session, (0, 0), None)
+        finally:
+            object.__setattr__(PLANTS["sunflower"], "cooldown", orig_cd)
+
 
 if __name__ == "__main__":
     unittest.main()

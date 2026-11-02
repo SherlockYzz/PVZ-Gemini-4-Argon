@@ -52,6 +52,11 @@ def can_plant(spec_id: str, col: int, row: int, world: World, session: Session) 
             return True, ""
         return False, "猫尾草是升级植物，必须种植在水池的睡莲上！"
 
+    if rule == PlacementRule.UPGRADE_SPIKEWEED:
+        if existing_plant and existing_plant.spec_id == "spikeweed":
+            return True, ""
+        return False, "地刺王是升级植物，必须种植在现有地刺上！"
+
     # Carrier placement (Lilypad)
     if rule == PlacementRule.CARRIER or rule == PlacementRule.WATER_ONLY:
         if not is_water_tile:
@@ -109,6 +114,13 @@ def perform_plant(spec_id: str, col: int, row: int, world: World, session: Sessi
         # Cattail replaces/occupies the lilypad
         existing_carrier = world.get_carrier_at(col, row)
         new_plant = Plant.create(spec_id, col, row, cx, cy, carrier=existing_carrier)
+        world.plants[(col, row)] = new_plant
+        return new_plant
+
+    if spec.placement == PlacementRule.UPGRADE_SPIKEWEED:
+        existing = world.get_plant_at(col, row)
+        carrier = existing.carrier if existing else None
+        new_plant = Plant.create(spec_id, col, row, cx, cy, carrier=carrier)
         world.plants[(col, row)] = new_plant
         return new_plant
 

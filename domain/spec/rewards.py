@@ -25,6 +25,7 @@ UNLOCK_ORDER: list[str] = [
     "snowpea",
     "potatomine",
     "repeater",
+    "splitpea",
     "threepeater",
     "squash",
     # 黑夜墓地阶段解锁
@@ -53,6 +54,7 @@ UNLOCK_ORDER: list[str] = [
     "agave",
     "magicshroom",
     "laserbean",
+    "spikerock",
     "wintermelon",
     "gatlingpea",
     "cobcannon",
@@ -62,7 +64,7 @@ LEVEL_REWARDS: dict[int, LevelReward] = {
     0: LevelReward(plants=["wallnut"]),
     1: LevelReward(plants=["snowpea"]),
     2: LevelReward(plants=["potatomine"]),
-    3: LevelReward(plants=["repeater"]),
+    3: LevelReward(plants=["repeater", "splitpea"]),
     4: LevelReward(
         plants=["squash", "threepeater"],
         artifact="golden_shovel",
@@ -92,12 +94,12 @@ LEVEL_REWARDS: dict[int, LevelReward] = {
         artifact_desc="华丽镀金清扫车！当割草机或泳池清扫机被触发碾压时，额外爆落 200 点阳光！",
     ),
     12: LevelReward(
-        plants=["garlic", "cattail", "twinsunflower"],
+        plants=["garlic", "cattail", "twinsunflower", "spikerock"],
         artifact="belt_9",
         artifact_name="九格战术腰带",
         artifact_desc="精锐战术腰带！通关倒数第四关解锁，出战卡槽容量永久扩充至 9 格！",
     ),
-    13: LevelReward(plants=["starfruit", "agave", "gatlingpea"]),
+    13: LevelReward(plants=["starfruit", "agave", "cobcannon", "gatlingpea"]),
     14: LevelReward(
         plants=["melonpult", "tallnut", "magicshroom", "laserbean"],
         artifact="master_belt",

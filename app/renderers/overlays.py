@@ -111,10 +111,12 @@ def render_victory(surface: pygame.Surface, reward: Optional[LevelReward]) -> di
         pygame.draw.rect(surface, (55, 42, 20), art_box, border_radius=10)
         pygame.draw.rect(surface, (255, 215, 60), art_box, 2, border_radius=10)
 
-        a_title = font_mid.render(f"★ 荣获传世神器：【{reward.artifact_name}】★", True, (255, 225, 70))
+        art_name = reward.artifact_name or "神秘神器"
+        a_title = font_mid.render(f"★ 荣获传世神器：【{art_name}】★", True, (255, 225, 70))
         surface.blit(a_title, (art_box.x + (art_box.width - a_title.get_width()) // 2, art_box.y + 14))
 
-        desc_txt = font_small.render(reward.artifact_desc[:44], True, (255, 235, 180))
+        desc_str = reward.artifact_desc or ""
+        desc_txt = font_small.render(desc_str[:44], True, (255, 235, 180))
         surface.blit(desc_txt, (art_box.x + (art_box.width - desc_txt.get_width()) // 2, art_box.y + 46))
 
     if not has_plants and not has_artifact:

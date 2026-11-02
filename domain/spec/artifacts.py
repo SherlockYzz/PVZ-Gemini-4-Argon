@@ -36,6 +36,11 @@ ARTIFACTS: dict[str, ArtifactSpec] = {
         name="镀金清扫车",
         description="华丽镀金清扫车！当割草机或泳池清扫机被触发碾压时，额外爆落 200 点阳光！",
     ),
+    "belt_9": ArtifactSpec(
+        id="belt_9",
+        name="九格战术腰带",
+        description="戴夫高阶腰带！出战卡槽容量永久扩充至 9 格！",
+    ),
     "master_belt": ArtifactSpec(
         id="master_belt",
         name="大师战术腰带",

@@ -107,14 +107,29 @@ def _update_plants(world: World, dt: float) -> None:
                     plant.hp = 0
             continue
 
-        # Multi-shot burst salvos (Repeater x2, Gatling x4)
+        # Multi-shot burst salvos (Repeater x2, Gatling x4, Splitpea rear x2)
         if plant.burst_remaining > 0:
             plant.sub_timer -= dt
             if plant.sub_timer <= 0:
                 plant.burst_remaining -= 1
                 plant.sub_timer = 0.15
                 target_r = getattr(plant, "burst_target_row", plant.row)
-                _fire_burst_bullet(plant, target_r, b_spec, world)
+                if getattr(plant, "burst_is_backward", False):
+                    row_cy = world.layout.get_row_center_y(target_r)
+                    world.projectiles.append(
+                        Projectile.create_straight(
+                            bullet_type="pea",
+                            row=target_r,
+                            x=plant.x - 22,
+                            y=row_cy - 8,
+                            damage=b_spec.damage,
+                            vx=-340.0,
+                        )
+                    )
+                    if plant.burst_remaining == 0:
+                        plant.burst_is_backward = False
+                else:
+                    _fire_burst_bullet(plant, target_r, b_spec, world)
 
         # Periodic action updates (Shooters, Lobbers, Producers)
         plant.timer -= dt
@@ -136,28 +151,99 @@ def _update_plants(world: World, dt: float) -> None:
                 world.suns.append(Sun.create_from_plant(plant.x, plant.y - 10, pop_x, pop_y, value=yield_val))
 
             elif kind == BehaviorKind.SHOOTER:
-                # Check target presence across monitored rows
-                rows_to_check = [row]
-                if b_spec.rows_spread > 0:
-                    rows_to_check = [r for r in (row - 1, row, row + 1) if 0 <= r < world.layout.rows]
+                if plant.spec_id == "splitpea":
+                    # Split Pea: Dual-direction independent target checks
+                    row_zombies = world.get_zombies_in_row(row)
+                    front_z = [z for z in row_zombies if z.is_alive and not z.hypnotized and z.x > plant.x - 20]
+                    back_z = [z for z in row_zombies if z.is_alive and not z.hypnotized and z.x < plant.x - 10]
+                    if front_z or back_z:
+                        plant.timer = b_spec.interval
+                        row_cy = world.layout.get_row_center_y(row)
+                        if front_z:
+                            world.projectiles.append(
+                                Projectile.create_straight(
+                                    bullet_type="pea",
+                                    row=row,
+                                    x=plant.x + 22,
+                                    y=row_cy - 8,
+                                    damage=b_spec.damage,
+                                    vx=340.0,
+                                )
+                            )
+                        if back_z:
+                            # 1st backward pea immediately
+                            world.projectiles.append(
+                                Projectile.create_straight(
+                                    bullet_type="pea",
+                                    row=row,
+                                    x=plant.x - 22,
+                                    y=row_cy - 8,
+                                    damage=b_spec.damage,
+                                    vx=-340.0,
+                                )
+                            )
+                            # Queue 2nd backward pea in 0.15s
+                            plant.burst_remaining = 1
+                            plant.sub_timer = 0.15
+                            plant.burst_is_backward = True
+                            plant.burst_target_row = row
+                else:
+                    # Check target presence across monitored rows
+                    rows_to_check = [row]
+                    if b_spec.rows_spread > 0:
+                        rows_to_check = [r for r in (row - 1, row, row + 1) if 0 <= r < world.layout.rows]
 
-                has_target = any(
-                    any(z.is_alive and not z.hypnotized and z.x > plant.x - 20 for z in world.get_zombies_in_row(r))
-                    for r in rows_to_check
-                )
+                    has_target = any(
+                        any(z.is_alive and not z.hypnotized and z.x > plant.x - 20 for z in world.get_zombies_in_row(r))
+                        for r in rows_to_check
+                    )
 
-                if has_target:
-                    plant.timer = b_spec.interval
-                    for r in rows_to_check:
-                        _fire_shooter(plant, r, b_spec, world)
+                    if has_target:
+                        plant.timer = b_spec.interval
+                        for r in rows_to_check:
+                            _fire_shooter(plant, r, b_spec, world)
 
             elif kind == BehaviorKind.LOBBER:
-                # Catapults check row
-                enemy_zombies = [z for z in world.get_zombies_in_row(row) if z.is_alive and not z.hypnotized and z.x > plant.x - 40]
-                if enemy_zombies:
-                    plant.timer = b_spec.interval
-                    lead_zombie = min(enemy_zombies, key=lambda z: z.x)
-                    _fire_lobber(plant, lead_zombie, b_spec, world)
+                if plant.spec_id == "cobcannon":
+                    # Cob Cannon: Global high-threat artillery bombardment
+                    enemy_zombies = [z for z in world.zombies if z.is_alive and not z.hypnotized and z.x > 60]
+                    if enemy_zombies:
+                        plant.timer = b_spec.interval
+                        lead_zombie = min(enemy_zombies, key=lambda z: z.x)
+                        world.projectiles.append(
+                            Projectile.create_lobbed(
+                                bullet_type="cob_missile",
+                                row=lead_zombie.row,
+                                start_x=plant.x + 30,
+                                start_y=plant.y - 25,
+                                target_x=lead_zombie.x,
+                                target_y=lead_zombie.y - 10,
+                                damage=b_spec.damage,
+                                arc_height=220.0,
+                                duration=1.2,
+                            )
+                        )
+                        world.floating_texts.append(FloatingText("加农炮发射！", plant.x, plant.y - 45, (255, 230, 80)))
+                        for _ in range(12):
+                            world.particles.append(
+                                CombatParticle(
+                                    kind="ash",
+                                    x=plant.x + 35,
+                                    y=plant.y - 15,
+                                    vx=random.uniform(-40, 40),
+                                    vy=random.uniform(-50, 10),
+                                    color=(255, 180, 50),
+                                    size=8.0,
+                                    lifetime=0.3,
+                                )
+                            )
+                else:
+                    # Catapults check row
+                    enemy_zombies = [z for z in world.get_zombies_in_row(row) if z.is_alive and not z.hypnotized and z.x > plant.x - 40]
+                    if enemy_zombies:
+                        plant.timer = b_spec.interval
+                        lead_zombie = min(enemy_zombies, key=lambda z: z.x)
+                        _fire_lobber(plant, lead_zombie, b_spec, world)
 
             elif kind == BehaviorKind.HOMING:
                 # Cattail fires homing spike prioritizing flying balloon zombies and closest threats
@@ -404,10 +490,11 @@ def _update_zombies(world: World, dt: float) -> None:
                     world.floating_texts.append(FloatingText("完美飞跃!", z.x, z.y - 25, (255, 200, 50)))
                     continue
 
-            # Spikeweed cannot be eaten; instead, spikeweed damages the zombie
-            if target_plant.spec_id == "spikeweed":
-                apply_damage(z, 30.0 * dt, bypass_shield=True)
-                # Zombie continues walking over spikeweed!
+            # Spikeweed and Spikerock cannot be eaten; instead, damage the zombie
+            if target_plant.spec_id in ("spikeweed", "spikerock"):
+                dmg_rate = 70.0 if target_plant.spec_id == "spikerock" else 30.0
+                apply_damage(z, dmg_rate * dt, bypass_shield=True)
+                # Zombie continues walking over spikeweed/spikerock!
                 z.x -= z.effective_speed * dt
                 continue
 

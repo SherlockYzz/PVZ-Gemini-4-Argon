@@ -79,12 +79,16 @@ class GameController:
                 if rect.collidepoint(mx, my):
                     self.audio.play_sound("click")
                     if name.startswith("level_"):
-                        idx = int(name.split("_")[1])
-                        self.session.current_level_idx = idx
+                        try:
+                            idx = int(name.split("_")[1])
+                        except (IndexError, ValueError):
+                            continue
+                        # Never trust a rendered button id to be a valid level index.
+                        self.session.current_level_idx = max(0, min(len(LEVELS) - 1, idx))
                     elif name == "start":
                         self._enter_seed_select()
                     elif name == "endless":
-                        self.session.current_level_idx = 15  # Level 16 is endless
+                        self.session.current_level_idx = len(LEVELS) - 1  # Last level is endless
                         self._enter_seed_select()
 
     def _enter_seed_select(self) -> None:
@@ -97,8 +101,8 @@ class GameController:
     def _smart_recommend_seeds(self) -> None:
         """Smart deck recommendation based on level theme and unlocked plants."""
         lvl_idx = self.session.current_level_idx
-        lvl_spec = LEVELS[lvl_idx] if lvl_idx < len(LEVELS) else LEVELS[0]
-        unlocked = [p for p in UNLOCK_ORDER if p in self.session.unlocked_plants]
+        lvl_spec = LEVELS[lvl_idx] if 0 <= lvl_idx < len(LEVELS) else LEVELS[0]
+        unlocked = [p for p in UNLOCK_ORDER if p in self.session.unlocked_plants and p in PLANTS]
 
         selected = []
         # Night vs Day sun economy
@@ -135,13 +139,19 @@ class GameController:
                     self.audio.play_sound("click")
                     if name.startswith("catalog_"):
                         p_id = name.split("_", 1)[1]
+                        # Only unlockable, known plants may enter the deck.
+                        if p_id not in PLANTS or p_id not in self.session.unlocked_plants:
+                            continue
                         if p_id in self.session.selected_seeds:
                             self.session.selected_seeds.remove(p_id)
                         elif len(self.session.selected_seeds) < self.session.max_seed_slots:
                             self.session.selected_seeds.append(p_id)
                     elif name.startswith("tray_"):
-                        idx = int(name.split("_")[1])
-                        if idx < len(self.session.selected_seeds):
+                        try:
+                            idx = int(name.split("_")[1])
+                        except (IndexError, ValueError):
+                            continue
+                        if 0 <= idx < len(self.session.selected_seeds):
                             self.session.selected_seeds.pop(idx)
                     elif name == "auto_fill":
                         self._smart_recommend_seeds()
@@ -152,13 +162,31 @@ class GameController:
                         self.mode = "menu"
                         self.audio.play_music("menu")
 
+    def _goto_level(self, target_idx: int) -> None:
+        """Single source of truth for all level transitions (warp, hotkeys, buttons).
+
+        skip_to_level owns bounds clamping, retroactive rewards and deck refresh;
+        this only handles presentation/state, so every entry point stays consistent.
+        """
+        self.world = skip_to_level(target_idx, self.session)
+        self.storage.save(self.session)
+        self.mode = "battle"
+        self.audio.play_sound("win")
+        self._sync_music_for_level()
+
+    def _step_level(self, delta: int) -> None:
+        self._goto_level((self.session.current_level_idx + delta) % len(LEVELS))
+
     def _sync_music_for_level(self) -> None:
-        lvl_spec = LEVELS[self.session.current_level_idx]
+        idx = self.session.current_level_idx
+        if not 0 <= idx < len(LEVELS):
+            # A stale/corrupted save index must not crash battle start.
+            idx = self.session.current_level_idx = max(0, min(len(LEVELS) - 1, idx))
+        lvl_spec = LEVELS[idx]
         music_track = "endless" if lvl_spec.is_endless else "night" if "night" in lvl_spec.theme else "day"
         self.audio.play_music(music_track)
 
     def _start_battle(self) -> None:
-        self._hud_rects = compute_hud_layout(self.session.max_seed_slots)
         self.world = start_level(self.session.current_level_idx, self.session)
         self.mode = "battle"
         self._sync_music_for_level()
@@ -185,17 +213,9 @@ class GameController:
                 self.mode = "warp"
                 self.audio.play_sound("click")
             elif event.key_name == "skip_next":
-                target = (self.session.current_level_idx + 1) % len(LEVELS)
-                self.world = skip_to_level(target, self.session)
-                self.storage.save(self.session)
-                self.audio.play_sound("win")
-                self._sync_music_for_level()
+                self._step_level(1)
             elif event.key_name == "skip_prev":
-                target = (self.session.current_level_idx - 1) % len(LEVELS)
-                self.world = skip_to_level(target, self.session)
-                self.storage.save(self.session)
-                self.audio.play_sound("win")
-                self._sync_music_for_level()
+                self._step_level(-1)
             elif event.seed_slot is not None:
                 if event.seed_slot < len(self.session.selected_seeds):
                     self.session.active_seed_idx = event.seed_slot
@@ -246,7 +266,8 @@ class GameController:
                 return
 
             # Check card slots (switching or selecting card)
-            for i, slot_rect in enumerate(self.hud_rects.card_slots):
+            # Bounded by the live capacity so an expanded belt never outruns the layout.
+            for i, slot_rect in enumerate(self.hud_rects.card_slots[: self.session.max_seed_slots]):
                 if slot_rect.collidepoint(mx, my):
                     if i < len(self.session.selected_seeds):
                         if self.session.active_seed_idx == i:
@@ -306,20 +327,10 @@ class GameController:
                 self.audio.play_sound("click")
                 return
             elif event.key_name == "skip_next":
-                target = (self.session.current_level_idx + 1) % len(LEVELS)
-                self.world = skip_to_level(target, self.session)
-                self.storage.save(self.session)
-                self.mode = "battle"
-                self.audio.play_sound("win")
-                self._sync_music_for_level()
+                self._step_level(1)
                 return
             elif event.key_name == "skip_prev":
-                target = (self.session.current_level_idx - 1) % len(LEVELS)
-                self.world = skip_to_level(target, self.session)
-                self.storage.save(self.session)
-                self.mode = "battle"
-                self.audio.play_sound("win")
-                self._sync_music_for_level()
+                self._step_level(-1)
                 return
             return
 
@@ -334,20 +345,14 @@ class GameController:
                     self.audio.play_sound("click")
                     return
                 elif name == "warp_next":
-                    target = (self.session.current_level_idx + 1) % len(LEVELS)
-                    self.world = skip_to_level(target, self.session)
-                    self.storage.save(self.session)
-                    self.mode = "battle"
-                    self.audio.play_sound("win")
-                    self._sync_music_for_level()
+                    self._step_level(1)
                     return
                 elif name.startswith("warp_"):
-                    idx = int(name.split("_")[1])
-                    self.world = skip_to_level(idx, self.session)
-                    self.storage.save(self.session)
-                    self.mode = "battle"
-                    self.audio.play_sound("win")
-                    self._sync_music_for_level()
+                    try:
+                        idx = int(name.split("_")[1])
+                        self._goto_level(idx)
+                    except (IndexError, ValueError):
+                        pass
                     return
 
     def _handle_overlay_event(self, event: InputEvent, buttons: dict) -> None:
@@ -369,7 +374,10 @@ class GameController:
                 elif name == "restart" or name == "retry":
                     self._start_battle()
                 elif name == "next_level":
-                    self.session.current_level_idx = min(15, self.session.current_level_idx + 1)
+                    self.session.current_level_idx = min(
+                        len(LEVELS) - 1, self.session.current_level_idx + 1
+                    )
+                    self.storage.save(self.session)
                     self._enter_seed_select()
                 elif name == "menu":
                     self.storage.save(self.session)
@@ -386,7 +394,6 @@ class GameController:
         if self.world.is_victory:
             self.mode = "victory"
             self.latest_reward = reward
-            self._hud_rects = compute_hud_layout(self.session.max_seed_slots)
             self.audio.play_sound("win")
             self.storage.save(self.session)
         elif self.world.is_game_over:
