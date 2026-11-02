@@ -11,11 +11,13 @@ from typing import Optional
 from domain.model.world import World
 from domain.model.session import Session
 from domain.spec.levels import LEVELS
+from domain.spec.field_layout import FieldLayout, LAND_LAYOUT, POOL_LAYOUT
 from infra.sprites import get_sprites
 from infra.pygame_fonts import get_font
 
 
 _BACKGROUND_CACHE: dict[str, pygame.Surface] = {}
+_GRID_OVERLAY_CACHE: dict[str, pygame.Surface] = {}
 
 
 def _lerp_color(c1: tuple[int, int, int], c2: tuple[int, int, int], t: float) -> tuple[int, int, int]:
@@ -26,23 +28,24 @@ def _lerp_color(c1: tuple[int, int, int], c2: tuple[int, int, int], t: float) ->
     )
 
 
-def _draw_house_edge(surface: pygame.Surface, rows: int, cell_h: int) -> None:
-    grid_x = 240
-    grid_y = 120
-    total_h = rows * cell_h + 28
+def _draw_house_edge(surface: pygame.Surface, layout: FieldLayout) -> None:
+    grid_x = layout.origin_x
+    grid_y = layout.origin_y
+    total_h = layout.rows * layout.cell_h + 28
     pygame.draw.rect(surface, (78, 59, 44), (0, grid_y - 14, grid_x, total_h))
     pygame.draw.rect(surface, (114, 88, 64), (0, grid_y - 14, grid_x - 12, total_h))
-    for row in range(rows):
-        y = grid_y + row * cell_h
-        pygame.draw.rect(surface, (91, 70, 52), (grid_x - 18, y + 8, 12, cell_h - 16), border_radius=3)
+    for row in range(layout.rows):
+        y = grid_y + row * layout.cell_h
+        pygame.draw.rect(surface, (91, 70, 52), (grid_x - 18, y + 8, 12, layout.cell_h - 16), border_radius=3)
         pygame.draw.line(surface, (54, 40, 30), (0, y), (grid_x, y), 2)
 
 
-def _draw_right_garden(surface: pygame.Surface, theme: str, grid_bottom: int) -> None:
+def _draw_right_garden(surface: pygame.Surface, theme: str, layout: FieldLayout) -> None:
     fence_color = (196, 189, 162) if "night" not in theme else (120, 130, 125)
     shadow = (42, 68, 48)
-    grid_right = 240 + 9 * 82  # 978
-    grid_y = 120
+    grid_right = layout.grid_right
+    grid_y = layout.origin_y
+    grid_bottom = grid_y + layout.rows * layout.cell_h
     for x in range(grid_right + 8, 1200 + 20, 26):
         pygame.draw.polygon(
             surface, shadow,
@@ -56,17 +59,41 @@ def _draw_right_garden(surface: pygame.Surface, theme: str, grid_bottom: int) ->
     pygame.draw.line(surface, fence_color, (grid_right + 2, grid_bottom - 60), (1200, grid_bottom - 60), 6)
 
 
-def get_procedural_background(theme: str, is_pool: bool) -> pygame.Surface:
-    key = f"{theme}_{is_pool}"
+def get_grid_overlay(layout: FieldLayout, is_pool: bool) -> pygame.Surface:
+    """Pre-baked 1200x760 transparent grid overlay to avoid creating 54 surfaces per frame."""
+    key = f"{is_pool}_{layout.origin_x}_{layout.cell_w}_{layout.cell_h}"
+    if key in _GRID_OVERLAY_CACHE:
+        return _GRID_OVERLAY_CACHE[key]
+
+    overlay = pygame.Surface((1200, 760), pygame.SRCALPHA)
+    for c in range(layout.cols):
+        for r in range(layout.rows):
+            cx, cy, cw, ch = layout.get_cell_rect(c, r)
+            border_c = (120, 220, 255, 45) if (is_pool and r in layout.pool_rows) else (35, 75, 35, 40)
+            pygame.draw.rect(overlay, border_c, (cx, cy, cw, ch), 1)
+
+    _GRID_OVERLAY_CACHE[key] = overlay
+    return overlay
+
+
+def get_procedural_background(theme: str, layout: Optional[FieldLayout] = None, is_pool: bool = False) -> pygame.Surface:
+    if layout is None:
+        layout = POOL_LAYOUT if (is_pool or "pool" in theme) else LAND_LAYOUT
+    key = f"{theme}_{layout.is_pool}_{layout.origin_x}_{layout.cell_w}_{layout.cell_h}"
     if key in _BACKGROUND_CACHE:
         return _BACKGROUND_CACHE[key]
 
     width, height = 1200, 760
     surface = pygame.Surface((width, height))
-    grid_x, grid_y, cols, cell_w = 240, 120, 9, 82
-    rows = 6 if is_pool else 5
-    cell_h = 96 if is_pool else 116
+    grid_x = layout.origin_x
+    grid_y = layout.origin_y
+    cols = layout.cols
+    rows = layout.rows
+    cell_w = layout.cell_w
+    cell_h = layout.cell_h
     grid_bottom = grid_y + rows * cell_h
+    grid_right = layout.grid_right
+    is_pool = layout.is_pool
 
     palettes = {
         "day": ((108, 185, 224), (205, 237, 244), (112, 188, 77), (95, 168, 65)),
@@ -104,11 +131,12 @@ def get_procedural_background(theme: str, is_pool: bool) -> pygame.Surface:
         pygame.draw.circle(surface, (255, 215, 0), (1080, 58), 24)
         pygame.draw.circle(surface, (255, 248, 180), (1080, 58), 16)
 
-    # 4. Lawn Checkerboard Grid & Pool Tiles
+    # 4. Lawn Checkerboard Grid & Pool Tiles (Pixel-perfect alignment with layout)
     for c in range(cols):
         for r in range(rows):
-            cell_rect = pygame.Rect(grid_x + c * cell_w, grid_y + r * cell_h, cell_w, cell_h)
-            if is_pool and r in (2, 3):
+            cx, cy, cw, ch = layout.get_cell_rect(c, r)
+            cell_rect = pygame.Rect(cx, cy, cw, ch)
+            if is_pool and r in layout.pool_rows:
                 water_c = (52, 148, 204) if (c + r) % 2 == 0 else (42, 128, 182)
                 pygame.draw.rect(surface, water_c, cell_rect)
                 pygame.draw.rect(surface, (80, 180, 230), cell_rect, 1)
@@ -120,14 +148,14 @@ def get_procedural_background(theme: str, is_pool: bool) -> pygame.Surface:
     # 5. Grid Lines
     for r in range(rows + 1):
         y = grid_y + r * cell_h
-        pygame.draw.line(surface, (45, 96, 48), (grid_x - 10, y), (grid_x + cols * cell_w + 10, y), 2)
+        pygame.draw.line(surface, (45, 96, 48), (grid_x - 10, y), (grid_right + 10, y), 2)
     for c in range(cols + 1):
         x = grid_x + c * cell_w
         pygame.draw.line(surface, (45, 96, 48), (x, grid_y), (x, grid_bottom), 1)
 
     # 6. House Edge & Right Garden Fence
-    _draw_house_edge(surface, rows, cell_h)
-    _draw_right_garden(surface, theme, grid_bottom)
+    _draw_house_edge(surface, layout)
+    _draw_right_garden(surface, theme, layout)
 
     _BACKGROUND_CACHE[key] = surface
     return surface
@@ -154,17 +182,12 @@ def render_battle(
     map_surf = sprites.get_map(theme)
     if map_surf:
         surface.blit(map_surf, (ox, oy))
-        # Subtle cell boundary guide overlay so players always see grid coordinates
-        for c in range(world.layout.cols):
-            for r in range(world.layout.rows):
-                cx, cy, cw, ch = world.layout.get_cell_rect(c, r)
-                border_c = (120, 220, 255, 45) if (level_spec.is_pool and r in world.layout.pool_rows) else (35, 75, 35, 40)
-                grid_s = pygame.Surface((cw, ch), pygame.SRCALPHA)
-                pygame.draw.rect(grid_s, border_c, (0, 0, cw, ch), 1)
-                surface.blit(grid_s, (cx + ox, cy + oy))
+        # Subtle pre-baked cell boundary guide overlay
+        grid_overlay = get_grid_overlay(world.layout, level_spec.is_pool)
+        surface.blit(grid_overlay, (ox, oy))
     else:
         # Full procedural lawn with checkerboard grid, sky, house and fence
-        bg = get_procedural_background(theme, level_spec.is_pool)
+        bg = get_procedural_background(theme, world.layout)
         surface.blit(bg, (ox, oy))
 
     # 3. Cell Hover Highlight (Guaranteed Pixel-Perfect Alignment)
@@ -253,12 +276,21 @@ def render_battle(
             # Cattail needle
             pygame.draw.line(surface, (220, 100, 140), (p.x - 8 + ox, p.y + oy), (p.x + 8 + ox, p.y + oy), 3)
         else:
-            is_freeze = (p.bullet_type == "snowpea")
+            is_fire = p.bullet_type in ("firepea", "fire_pea")
+            is_freeze = p.bullet_type in ("snowpea", "pea_ice")
+
+            # Fire pea flame glow aura
+            if is_fire:
+                glow_surf = pygame.Surface((36, 36), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (255, 120, 20, 65), (18, 18), 16)
+                pygame.draw.circle(glow_surf, (255, 200, 50, 110), (18, 18), 10)
+                surface.blit(glow_surf, (p.x - 18 + ox, p.y - 18 + oy))
+
             b_surf = sprites.get_bullet(p.bullet_type, is_freeze=is_freeze, size=24)
             if b_surf:
-                surface.blit(b_surf, (p.x - 12 + ox, p.y - 12 + oy))
+                surface.blit(b_surf, (p.x - b_surf.get_width() // 2 + ox, p.y - b_surf.get_height() // 2 + oy))
             else:
-                col = (120, 220, 255) if is_freeze else (255, 120, 30) if p.bullet_type == "firepea" else (140, 230, 60)
+                col = (120, 220, 255) if is_freeze else (255, 120, 30) if is_fire else (140, 230, 60)
                 pygame.draw.circle(surface, col, (int(p.x + ox), int(p.y + oy)), 8)
 
     # 9. Suns
@@ -280,4 +312,12 @@ def render_battle(
         if ft.alive:
             txt_surf = font_bold.render(ft.text, True, ft.color)
             txt_surf.set_alpha(ft.alpha)
+            # High-visibility dark badge for warning messages
+            if ft.text.startswith("⚠") or "必须" in ft.text or "阳光" in ft.text or "冷却" in ft.text:
+                tw, th = txt_surf.get_size()
+                bg_rect = pygame.Rect(int(ft.x + ox - 8), int(ft.y + oy - 4), tw + 16, th + 8)
+                badge_surf = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                badge_surf.fill((20, 15, 15, int(195 * (ft.alpha / 255.0))))
+                surface.blit(badge_surf, bg_rect.topleft)
+                pygame.draw.rect(surface, (255, 100, 80, int(220 * (ft.alpha / 255.0))), bg_rect, 1, border_radius=4)
             surface.blit(txt_surf, (ft.x + ox, ft.y + oy))

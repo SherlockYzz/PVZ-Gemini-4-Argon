@@ -8,6 +8,7 @@ import pygame
 
 from domain.model.session import Session
 from domain.model.world import World
+from domain.model.particle import FloatingText
 from domain.spec.levels import LEVELS
 from domain.spec.rewards import LevelReward, UNLOCK_ORDER
 from domain.spec.plants import PLANTS
@@ -197,13 +198,7 @@ class GameController:
         if event.kind == "click":
             mx, my = event.x, event.y
 
-            # Check sun collection
-            collected = execute_collect_sun(mx, my, self.world)
-            if collected:
-                self.audio.play_sound("collect")
-                return
-
-            # Check HUD buttons
+            # Check HUD buttons first
             if self.hud_rects.shovel_button.collidepoint(mx, my):
                 self.session.active_shovel = not self.session.active_shovel
                 self.session.active_seed_idx = None
@@ -230,7 +225,7 @@ class GameController:
                 self.audio.play_sound("click")
                 return
 
-            # Check card slots
+            # Check card slots (switching or selecting card)
             for i, slot_rect in enumerate(self.hud_rects.card_slots):
                 if slot_rect.collidepoint(mx, my):
                     if i < len(self.session.selected_seeds):
@@ -242,19 +237,47 @@ class GameController:
                         self.audio.play_sound("click")
                     return
 
-            # Check Lawn Grid Placement / Shoveling
-            col, row = self.world.layout.pos_to_cell(mx, my)
-            if col is not None and row is not None:
-                if self.session.active_shovel:
+            # Priority 1: Lawn Placement / Shoveling when holding card or shovel
+            if self.session.active_shovel:
+                col, row = self.world.layout.pos_to_cell(mx, my)
+                if col is not None and row is not None:
                     shoveled = execute_shovel_action(col, row, self.world, self.session)
                     if shoveled:
                         self.audio.play_sound("plant")
                     return
-                elif self.session.active_seed_idx is not None:
-                    planted = execute_plant_action(col, row, self.world, self.session)
+
+            if self.session.active_seed_idx is not None:
+                col, row = self.world.layout.pos_to_cell(mx, my)
+                if col is not None and row is not None:
+                    planted, reason = execute_plant_action(col, row, self.world, self.session)
                     if planted:
                         self.audio.play_sound("plant")
+                    else:
+                        self.audio.play_sound("click")
+                        cx, cy = self.world.layout.get_cell_center(col, row)
+                        self.world.floating_texts.append(
+                            FloatingText(
+                                text=f"⚠ {reason}",
+                                x=max(120, min(800, cx - 70)),
+                                y=max(70, cy - 25),
+                                color=(255, 90, 80),
+                                lifetime=2.0,
+                                vy=-14.0,
+                            )
+                        )
                     return
+                else:
+                    # Clicked off-lawn while holding seed card
+                    self.world.floating_texts.append(
+                        FloatingText("⚠ 请点击草坪格种植植物", max(120, min(800, mx - 70)), max(65, my - 20), (255, 100, 100), lifetime=1.5, vy=-12.0)
+                    )
+                    return
+
+            # Priority 2: Sun collection (when not holding a card/shovel)
+            collected = execute_collect_sun(mx, my, self.world)
+            if collected:
+                self.audio.play_sound("collect")
+                return
 
     def _handle_warp_event(self, event: InputEvent, buttons: dict) -> None:
         if event.kind == "key":

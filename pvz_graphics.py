@@ -204,17 +204,26 @@ def get_mower_surface(target_size: Tuple[int, int] = (64, 52), is_pool: bool = F
 def get_bullet_surface(freeze: bool = False, size: int = 24, bullet_type: str = "pea") -> Optional[pygame.Surface]:
     type_map = {
         "mushroom": ("bullet_mushroom", size, size),
-        "fire_pea": ("fire_pea", int(size * 1.3), int(size * 1.3)),
+        "shroom": ("bullet_mushroom", size, size),
+        "fume": ("bullet_mushroom", int(size * 1.3), int(size * 1.3)),
+        "fire_pea": ("fire_pea", int(size * 1.35), int(size * 1.35)),
+        "firepea": ("fire_pea", int(size * 1.35), int(size * 1.35)),
         "cabbage": ("cabbage", int(size * 1.25), int(size * 1.25)),
         "kernel": ("kernel", int(size * 0.95), int(size * 1.15)),
         "butter": ("butter", int(size * 1.4), int(size * 1.0)),
         "melon": ("melon", int(size * 1.5), int(size * 1.3)),
         "winter_melon": ("winter_melon", int(size * 1.5), int(size * 1.3)),
-        "cattail_spike": ("cattail_spike", int(size * 1.25), int(size * 0.75)),
+        "wintermelon": ("winter_melon", int(size * 1.5), int(size * 1.3)),
+        "spike": ("cattail_spike", int(size * 1.3), int(size * 0.8)),
+        "cattail_spike": ("cattail_spike", int(size * 1.3), int(size * 0.8)),
+        "pea_ice": ("pea_ice", size, size),
+        "snowpea": ("pea_ice", size, size),
+        "pea": ("pea_normal", size, size),
+        "pea_normal": ("pea_normal", size, size),
     }
     if bullet_type in type_map:
         key, w, h = type_map[bullet_type]
-    elif freeze:
+    elif freeze or bullet_type in ("snowpea", "pea_ice"):
         key, w, h = "pea_ice", size, size
     else:
         key, w, h = "pea_normal", size, size
@@ -645,17 +654,19 @@ def render_zombie_sprite(
             b_scaled = _get_scaled(butter_surf, 38, 26)
             surface.blit(b_scaled, (int(zombie.x - 19), int(ground_y - 82 + vault_y)))
 
-    # 血条绘制 (读报僵尸护盾及各僵尸受伤时稳定常显，高度固定不随动作跳跃)
-    has_np = getattr(zombie, "has_newspaper", False)
-    np_hp = getattr(zombie, "newspaper_hp", 0.0)
-    if ztype == "newspaper":
-        total_hp = zombie.hp + (np_hp if has_np else 0.0)
-        total_max = zombie.max_hp + 140.0
-        damaged = total_hp < (total_max - 0.5)
-        ratio = max(0.0, min(1.0, total_hp / total_max))
-    else:
-        damaged = zombie.hp < (zombie.max_hp - 0.5)
-        ratio = max(0.0, min(1.0, zombie.hp / max(1.0, zombie.max_hp)))
+    # 血条绘制 (权威统一生命值：身体HP + 护盾/帽子HP，受伤即亮条，血量平滑递减)
+    total_curr = getattr(zombie, "total_current_hp", None)
+    total_max = getattr(zombie, "total_max_hp", None)
+    if total_curr is None or total_max is None or total_max <= 0:
+        b_hp = getattr(zombie, "hp", 0.0)
+        s_hp = getattr(zombie, "shield_hp", 0.0)
+        mb_hp = getattr(zombie, "max_hp", 200.0)
+        ms_hp = getattr(zombie, "shield_max_hp", 0.0)
+        total_curr = b_hp + s_hp
+        total_max = mb_hp + ms_hp
+
+    damaged = total_curr < (total_max - 0.5)
+    ratio = max(0.0, min(1.0, total_curr / max(1.0, total_max)))
 
     if not getattr(zombie, "dead", False) and damaged and alpha >= 100:
         if ztype == "gargantuar":

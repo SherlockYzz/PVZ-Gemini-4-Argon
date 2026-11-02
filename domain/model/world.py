@@ -53,9 +53,13 @@ class World:
                 self._plants_by_row[p.row].append(p)
 
     def get_zombies_in_row(self, row: int) -> list[Zombie]:
+        if not self._zombies_by_row:
+            return [z for z in self.zombies if z.row == row and z.is_alive]
         return self._zombies_by_row.get(row, [])
 
     def get_plants_in_row(self, row: int) -> list[Plant]:
+        if not self._plants_by_row:
+            return [p for p in self.plants.values() if p.row == row and p.is_alive]
         return self._plants_by_row.get(row, [])
 
     def get_plant_at(self, col: int, row: int) -> Optional[Plant]:

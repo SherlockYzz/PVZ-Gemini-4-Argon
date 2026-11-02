@@ -24,6 +24,7 @@ class Plant:
     timer: float = 0.0                 # Action countdown (shoot / produce sun / attack)
     sub_timer: float = 0.0             # Secondary timer (e.g. Gatling / Repeater burst gaps)
     burst_remaining: int = 0           # Remaining shots in current salvo
+    burst_target_row: int = 0          # Target row for burst salvos
     state: str = "idle"                # "idle", "attack", "chewing", "priming", "exploded", "squash_jump"
     state_timer: float = 0.0           # State duration / animation progress
 

@@ -59,14 +59,18 @@ class Viewport:
         return lx, ly
 
     def present(self) -> None:
-        """Presents canvas onto the display window with letterbox bars."""
+        """Presents canvas onto the display window with ultra-low latency letterbox handling."""
         win_w, win_h = self.window_surface.get_size()
         scaled_w = int(self.logical_width * self.scale)
         scaled_h = int(self.logical_height * self.scale)
 
-        scaled_canvas = pygame.transform.smoothscale(self.canvas, (scaled_w, scaled_h))
+        # 1:1 Pixel Mapping Fast-Path: Zero-scaling, Zero-fill overhead
+        if scaled_w == self.logical_width and scaled_h == self.logical_height and self.offset_x == 0 and self.offset_y == 0:
+            self.window_surface.blit(self.canvas, (0, 0))
+        else:
+            scaled_canvas = pygame.transform.scale(self.canvas, (scaled_w, scaled_h))
+            if self.offset_x > 0 or self.offset_y > 0:
+                self.window_surface.fill((0, 0, 0))
+            self.window_surface.blit(scaled_canvas, (self.offset_x, self.offset_y))
 
-        # Fill background letterbox bars with black
-        self.window_surface.fill((0, 0, 0))
-        self.window_surface.blit(scaled_canvas, (self.offset_x, self.offset_y))
         pygame.display.flip()

@@ -35,14 +35,45 @@ def _update_straight_projectile(proj: Projectile, world: World, dt: float) -> No
         proj.alive = False
         return
 
-    # Torchwood enhancement: turn pea into flaming pea
-    if proj.bullet_type == "pea":
-        col, row = world.layout.pos_to_cell(proj.x, proj.y)
-        if col is not None and row is not None:
-            plant = world.get_plant_at(col, row)
-            if plant and plant.spec_id == "torchwood":
-                proj.bullet_type = "firepea"
-                proj.damage = 40.0
+    # Torchwood enhancement: turn peas into flaming firepeas
+    if proj.bullet_type in ("pea", "snowpea"):
+        for plant in world.get_plants_in_row(proj.row):
+            if plant.spec_id == "torchwood" and abs(proj.x - plant.x) < 34:
+                if proj.bullet_type == "snowpea":
+                    # Frozen pea extinguished to normal pea
+                    proj.bullet_type = "pea"
+                else:
+                    # Normal pea ignited into fiery flamepea with double damage!
+                    proj.bullet_type = "firepea"
+                    proj.damage = max(proj.damage * 2.0, 40.0)
+                    world.particles.append(
+                        CombatParticle(
+                            kind="flame",
+                            x=proj.x,
+                            y=proj.y,
+                            vx=random.uniform(15, 35),
+                            vy=random.uniform(-15, 15),
+                            color=(255, 160, 30),
+                            size=8.0,
+                            lifetime=0.25,
+                        )
+                    )
+                break
+
+    # Fiery trailing sparks for firepeas
+    if proj.bullet_type == "firepea" and random.random() < 0.4:
+        world.particles.append(
+            CombatParticle(
+                kind="spark",
+                x=proj.x - 6,
+                y=proj.y + random.uniform(-4, 4),
+                vx=random.uniform(-30, -5),
+                vy=random.uniform(-8, 8),
+                color=(255, 140, 20),
+                size=4.0,
+                lifetime=0.15,
+            )
+        )
 
     # Collision with zombies in the same row
     zombies = world.get_zombies_in_row(proj.row)
@@ -150,25 +181,42 @@ def _detonate_lobbed_impact(proj: Projectile, world: World) -> None:
 
 
 def _update_homing_projectile(proj: Projectile, world: World, dt: float) -> None:
-    # Find nearest alive enemy zombie
+    # 1. Target candidate selection: prioritize flying balloons, then frontmost zombie
     best_target = None
-    min_dist = 999999.0
-
-    for z in world.zombies:
-        if z.is_alive and not z.hypnotized:
-            dist = math.hypot(z.x - proj.x, z.y - proj.y)
-            if dist < min_dist:
-                min_dist = dist
+    if proj.target_zombie_id is not None:
+        for z in world.zombies:
+            if z.id == proj.target_zombie_id and z.is_alive and not z.hypnotized:
                 best_target = z
+                break
 
+    if not best_target:
+        candidates = [z for z in world.zombies if z.is_alive and not z.hypnotized]
+        if candidates:
+            flying = [z for z in candidates if z.flying]
+            if flying:
+                best_target = min(flying, key=lambda z: z.x)
+            else:
+                best_target = min(candidates, key=lambda z: math.hypot(z.x - proj.x, (z.y - 45) - proj.y))
+            if best_target:
+                proj.target_zombie_id = best_target.id
+
+    # 2. Homing steering toward target torso / balloon
     if best_target:
+        target_y = best_target.y - (110 if best_target.flying else 50)
         dx = best_target.x - proj.x
-        dy = best_target.y - proj.y
-        dist = max(1.0, math.hypot(dx, dy))
-        desired_vx = (dx / dist) * 350.0
-        desired_vy = (dy / dist) * 350.0
-        proj.vx = lerp(proj.vx, desired_vx, dt * 7.0)
-        proj.vy = lerp(proj.vy, desired_vy, dt * 7.0)
+        dy = target_y - proj.y
+        dist = math.hypot(dx, dy)
+        speed = 420.0
+        if dist > 0:
+            desired_vx = (dx / dist) * speed
+            desired_vy = (dy / dist) * speed
+        else:
+            desired_vx, desired_vy = speed, 0.0
+
+        # High-responsiveness navigation: never orbits!
+        steer = min(1.0, dt * 18.0)
+        proj.vx = lerp(proj.vx, desired_vx, steer)
+        proj.vy = lerp(proj.vy, desired_vy, steer)
 
     proj.x += proj.vx * dt
     proj.y += proj.vy * dt
@@ -177,13 +225,29 @@ def _update_homing_projectile(proj: Projectile, world: World, dt: float) -> None
         proj.alive = False
         return
 
-    # Check collision with any target
+    # 3. Collision resolution against all enemy zombies (torso, balloon, body)
     for z in world.zombies:
-        if z.is_alive and not z.hypnotized:
-            if math.hypot(z.x - proj.x, z.y - proj.y) < 26.0:
-                apply_damage(z, proj.damage)
-                proj.alive = False
-                world.particles.append(
-                    CombatParticle(kind="splat", x=proj.x, y=proj.y, vx=0, vy=0, color=(240, 140, 180), size=5.0, lifetime=0.15)
-                )
-                break
+        if not z.is_alive or z.hypnotized:
+            continue
+
+        body_top = z.y - (145 if z.flying else 95)
+        body_bottom = z.y + 15
+        is_hit = False
+        if abs(proj.x - z.x) <= 32 and (body_top <= proj.y <= body_bottom):
+            is_hit = True
+        elif math.hypot(proj.x - z.x, proj.y - (z.y - (100 if z.flying else 45))) < 36.0:
+            is_hit = True
+
+        if is_hit:
+            # Cattail pops balloon zombies!
+            if z.flying:
+                z.balloon_popped = True
+                z.shield_hp = 0.0
+                world.floating_texts.append(FloatingText("气球刺破!", z.x, z.y - 65, (255, 200, 80)))
+
+            apply_damage(z, proj.damage)
+            proj.alive = False
+            world.particles.append(
+                CombatParticle(kind="splat", x=proj.x, y=proj.y, vx=random.uniform(-20, 20), vy=random.uniform(-20, 20), color=(240, 140, 180), size=6.0, lifetime=0.18)
+            )
+            break

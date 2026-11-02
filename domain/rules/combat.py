@@ -107,6 +107,15 @@ def _update_plants(world: World, dt: float) -> None:
                     plant.hp = 0
             continue
 
+        # Multi-shot burst salvos (Repeater x2, Gatling x4)
+        if plant.burst_remaining > 0:
+            plant.sub_timer -= dt
+            if plant.sub_timer <= 0:
+                plant.burst_remaining -= 1
+                plant.sub_timer = 0.15
+                target_r = getattr(plant, "burst_target_row", plant.row)
+                _fire_burst_bullet(plant, target_r, b_spec, world)
+
         # Periodic action updates (Shooters, Lobbers, Producers)
         plant.timer -= dt
         if plant.timer <= 0:
@@ -127,7 +136,7 @@ def _update_plants(world: World, dt: float) -> None:
                 world.suns.append(Sun.create_from_plant(plant.x, plant.y - 10, pop_x, pop_y, value=yield_val))
 
             elif kind == BehaviorKind.SHOOTER:
-                # Check target presence
+                # Check target presence across monitored rows
                 rows_to_check = [row]
                 if b_spec.rows_spread > 0:
                     rows_to_check = [r for r in (row - 1, row, row + 1) if 0 <= r < world.layout.rows]
@@ -151,34 +160,54 @@ def _update_plants(world: World, dt: float) -> None:
                     _fire_lobber(plant, lead_zombie, b_spec, world)
 
             elif kind == BehaviorKind.HOMING:
-                # Cattail fires homing spike if any zombie exists anywhere
-                enemy_zombies = [z for z in world.zombies if z.is_alive and not z.hypnotized and z.x > 50]
+                # Cattail fires homing spike prioritizing flying balloon zombies and closest threats
+                enemy_zombies = [z for z in world.zombies if z.is_alive and not z.hypnotized and z.x > 30]
                 if enemy_zombies:
                     plant.timer = b_spec.interval
-                    closest = min(enemy_zombies, key=lambda z: z.x)
+                    balloons = [z for z in enemy_zombies if z.flying]
+                    target = min(balloons, key=lambda z: z.x) if balloons else min(enemy_zombies, key=lambda z: z.x)
                     world.projectiles.append(
-                        Projectile.create_homing("spike", row, plant.x + 15, plant.y - 12, damage=30.0, target_zombie_id=closest.id)
+                        Projectile.create_homing("spike", row, plant.x + 16, plant.y - 12, damage=30.0, target_zombie_id=target.id)
                     )
 
 
 def _fire_shooter(plant: Plant, target_row: int, b_spec, world: World) -> None:
     bullet_type = b_spec.bullet_type
     damage = b_spec.damage
+    row_center_y = world.layout.get_row_center_y(target_row)
     world.projectiles.append(
         Projectile.create_straight(
             bullet_type=bullet_type,
             row=target_row,
             x=plant.x + 24,
-            y=plant.y - 8,
+            y=row_center_y - 8,
             damage=damage,
             piercing=(bullet_type in ("fume", "laser")),
             max_range=320.0 if plant.spec_id == "puffshroom" else 2000.0,
         )
     )
     # Repeater / Gatling rapid fire salvos
-    if b_spec.burst_count > 1:
+    if b_spec.burst_count > 1 and plant.burst_remaining == 0:
         plant.burst_remaining = b_spec.burst_count - 1
         plant.sub_timer = 0.15
+        plant.burst_target_row = target_row
+
+
+def _fire_burst_bullet(plant: Plant, target_row: int, b_spec, world: World) -> None:
+    bullet_type = b_spec.bullet_type
+    damage = b_spec.damage
+    row_center_y = world.layout.get_row_center_y(target_row)
+    world.projectiles.append(
+        Projectile.create_straight(
+            bullet_type=bullet_type,
+            row=target_row,
+            x=plant.x + 24,
+            y=row_center_y - 8,
+            damage=damage,
+            piercing=(bullet_type in ("fume", "laser")),
+            max_range=320.0 if plant.spec_id == "puffshroom" else 2000.0,
+        )
+    )
 
 
 def _fire_lobber(plant: Plant, target_zombie: Zombie, b_spec, world: World) -> None:
