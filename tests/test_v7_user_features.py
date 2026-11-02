@@ -210,6 +210,23 @@ class TestUserFeaturesAndBugFixes(unittest.TestCase):
         self.assertEqual(len(self.world.projectiles), 2)
         self.assertEqual(repeater.burst_remaining, 0)
 
+    def test_land_zombie_drowns_in_pool_water(self):
+        """Validates that land zombies (Bucket, Cone, Basic) without swim gear drown immediately in pool water."""
+        # Spawn a 1300 HP Buckethead zombie in water row 2
+        bucket_z = Zombie.create("bucket", row=2, x=600, y=self.world.layout.get_row_ground_y(2))
+        self.world.zombies.append(bucket_z)
+        self.assertTrue(self.world.layout.is_water(2))
+        self.assertFalse(bucket_z.is_water)
+
+        # Update combat simulation
+        update_combat(self.world, self.session, dt=0.05)
+
+        # Must immediately drown!
+        self.assertFalse(bucket_z.is_alive)
+        self.assertEqual(bucket_z.hp, 0.0)
+        self.assertTrue(any("淹死了" in ft.text for ft in self.world.floating_texts))
+        self.assertTrue(any(pt.kind == "splash" for pt in self.world.particles))
+
 
 if __name__ == "__main__":
     unittest.main()

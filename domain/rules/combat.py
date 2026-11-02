@@ -259,6 +259,26 @@ def _update_zombies(world: World, dt: float) -> None:
         if not z.is_alive:
             continue
 
+        # Authentic PVZ drowning: Land zombies in pool without floatation instantly sink and drown!
+        if world.layout.is_water(z.row) and not getattr(z, "is_water", False):
+            z.hp = 0.0
+            z.shield_hp = 0.0
+            for _ in range(8):
+                world.particles.append(
+                    CombatParticle(
+                        kind="splash",
+                        x=z.x + random.uniform(-15, 15),
+                        y=z.y - random.uniform(10, 40),
+                        vx=random.uniform(-40, 40),
+                        vy=random.uniform(-50, -15),
+                        color=(140, 220, 255),
+                        size=random.uniform(5.0, 8.0),
+                        lifetime=0.3,
+                    )
+                )
+            world.floating_texts.append(FloatingText("扑通！淹死了~", z.x, z.y - 35, (120, 215, 255)))
+            continue
+
         z.total_lifetime += dt
         if z.flash_timer > 0:
             z.flash_timer = max(0.0, z.flash_timer - dt)
@@ -334,6 +354,27 @@ def _update_zombies(world: World, dt: float) -> None:
                     new_r = random.choice(options)
                     z.row = new_r
                     z.y = world.layout.get_row_ground_y(new_r)
+
+                    # Authentic PVZ mechanic: Land zombies entering pool drown immediately!
+                    if world.layout.is_water(new_r) and not getattr(z, "is_water", False):
+                        z.hp = 0.0
+                        z.shield_hp = 0.0
+                        for _ in range(12):
+                            world.particles.append(
+                                CombatParticle(
+                                    kind="splash",
+                                    x=z.x + random.uniform(-16, 16),
+                                    y=z.y - random.uniform(10, 45),
+                                    vx=random.uniform(-45, 45),
+                                    vy=random.uniform(-60, -15),
+                                    color=(140, 225, 255),
+                                    size=random.uniform(5.0, 9.0),
+                                    lifetime=0.35,
+                                )
+                            )
+                        world.floating_texts.append(FloatingText("扑通！淹死了~", z.x, z.y - 35, (120, 215, 255)))
+                        continue
+
                 world.floating_texts.append(FloatingText("嫌弃变道!", z.x, z.y - 25, (200, 240, 120)))
                 continue
 
