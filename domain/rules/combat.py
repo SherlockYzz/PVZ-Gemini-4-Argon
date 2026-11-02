@@ -170,6 +170,18 @@ def _update_plants(world: World, dt: float) -> None:
                         Projectile.create_homing("spike", row, plant.x + 16, plant.y - 12, damage=30.0, target_zombie_id=target.id)
                     )
 
+            elif kind == BehaviorKind.MELEE or plant.spec_id == "agave":
+                # Legendary Agave sword slash & execution
+                _update_agave_melee(plant, b_spec, world)
+
+            elif kind == BehaviorKind.AURA:
+                # Lane piercing aura attack (Laser Bean, Fume-shroom)
+                _update_aura_plant(plant, b_spec, world)
+
+            elif plant.spec_id == "starfruit":
+                # Starfruit multi-directional shooting
+                _update_starfruit(plant, b_spec, world)
+
 
 def _fire_shooter(plant: Plant, target_row: int, b_spec, world: World) -> None:
     bullet_type = b_spec.bullet_type
@@ -341,9 +353,15 @@ def _update_zombies(world: World, dt: float) -> None:
                 world.floating_texts.append(FloatingText("被魅惑了!", z.x, z.y - 25, (220, 120, 255)))
                 continue
 
-            # Special: Garlic diversion!
+            # Special: Garlic bite & diversion (Authentic: 2 bites kill, each takes 50% max HP)
             if target_plant.spec_id == "garlic":
-                target_plant.take_damage(z.damage * dt)
+                bite_damage = target_plant.max_hp * 0.5
+                plant_died = target_plant.take_damage(bite_damage)
+                if plant_died:
+                    world.floating_texts.append(FloatingText("大蒜被啃烂了!", target_plant.x, target_plant.y - 25, (255, 100, 100)))
+                else:
+                    world.floating_texts.append(FloatingText("-50% 耐久!", target_plant.x, target_plant.y - 35, (240, 180, 50)))
+
                 # Divert zombie row up or down
                 options = []
                 if z.row > 0:
@@ -427,3 +445,75 @@ def _update_mowers(world: World, session: Session, dt: float) -> None:
             if not mower.active and "golden_mower" in session.unlocked_artifacts:
                 world.sun += 200
                 world.floating_texts.append(FloatingText("+200 黄金割草!", mower.x, mower.y, (255, 215, 0)))
+
+
+def _update_agave_melee(plant: Plant, b_spec, world: World) -> None:
+    reach = world.layout.cell_w * 2.2
+    close_zombies = [
+        z for z in world.get_zombies_in_row(plant.row)
+        if z.is_alive and not z.hypnotized and plant.x - 10 <= z.x <= plant.x + reach
+    ]
+    if close_zombies:
+        plant.timer = b_spec.interval
+        plant.scale = 1.35  # Slash strike visual pop
+        world.shake.trigger(magnitude=5.0, duration=0.15)
+        for z in close_zombies:
+            if z.total_current_hp <= 120.0:
+                # Low HP execution slash!
+                apply_damage(z, 9999.0, is_ash=True)
+                world.floating_texts.append(FloatingText("绝杀斩！", z.x, z.y - 35, (120, 255, 180)))
+            else:
+                apply_damage(z, b_spec.damage)
+                world.floating_texts.append(FloatingText(f"-{int(b_spec.damage)} 剑气！", z.x, z.y - 30, (140, 240, 180)))
+
+            # Sword arc green slash particles
+            for _ in range(6):
+                world.particles.append(
+                    CombatParticle(
+                        kind="slash",
+                        x=z.x + random.uniform(-10, 10),
+                        y=z.y - random.uniform(20, 60),
+                        vx=random.uniform(20, 60),
+                        vy=random.uniform(-40, -10),
+                        color=(120, 255, 170),
+                        size=random.uniform(5.0, 9.0),
+                        lifetime=0.25,
+                    )
+                )
+
+
+def _update_aura_plant(plant: Plant, b_spec, world: World) -> None:
+    if plant.spec_id == "laserbean":
+        targets = [z for z in world.get_zombies_in_row(plant.row) if z.is_alive and not z.hypnotized and z.x >= plant.x - 20]
+        if targets:
+            plant.timer = b_spec.interval
+            plant.scale = 1.25
+            world.shake.trigger(magnitude=4.0, duration=0.12)
+            for z in targets:
+                apply_damage(z, b_spec.damage)
+            world.floating_texts.append(FloatingText("激光穿透！", plant.x + 80, plant.y - 25, (80, 220, 255)))
+            for lx in range(int(plant.x + 30), int(world.layout.grid_right + 30), 45):
+                world.particles.append(
+                    CombatParticle(kind="laser", x=lx, y=plant.y - 8, vx=random.uniform(10, 30), vy=random.uniform(-3, 3), color=(80, 230, 255), size=6.0, lifetime=0.2)
+                )
+    elif plant.spec_id == "fumeshroom":
+        targets = [z for z in world.get_zombies_in_row(plant.row) if z.is_alive and not z.hypnotized and 0 <= z.x - plant.x <= world.layout.cell_w * 4.2]
+        if targets:
+            plant.timer = b_spec.interval
+            world.projectiles.append(
+                Projectile.create_straight(
+                    bullet_type="fume",
+                    row=plant.row,
+                    x=plant.x + 24,
+                    y=plant.y - 8,
+                    damage=b_spec.damage,
+                    piercing=True,
+                    max_range=world.layout.cell_w * 4.2,
+                )
+            )
+
+
+def _update_starfruit(plant: Plant, b_spec, world: World) -> None:
+    if any(z.is_alive and not z.hypnotized for z in world.zombies):
+        plant.timer = b_spec.interval
+        world.projectiles.append(Projectile.create_straight("star", plant.row, plant.x + 15, plant.y - 8, damage=b_spec.damage))

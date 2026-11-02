@@ -306,7 +306,11 @@ def render_battle(
     # 10. Combat Particles & Floating Texts
     for pt in world.particles:
         if pt.alive:
-            pygame.draw.circle(surface, pt.color, (int(pt.x + ox), int(pt.y + oy)), int(pt.size))
+            if pt.kind == "slash":
+                sx, sy = int(pt.x + ox), int(pt.y + oy)
+                pygame.draw.line(surface, pt.color, (sx - 8, sy + 8), (sx + 8, sy - 8), 3)
+            else:
+                pygame.draw.circle(surface, pt.color, (int(pt.x + ox), int(pt.y + oy)), int(pt.size))
 
     for ft in world.floating_texts:
         if ft.alive:

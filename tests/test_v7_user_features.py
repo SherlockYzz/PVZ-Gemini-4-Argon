@@ -227,6 +227,68 @@ class TestUserFeaturesAndBugFixes(unittest.TestCase):
         self.assertTrue(any("淹死了" in ft.text for ft in self.world.floating_texts))
         self.assertTrue(any(pt.kind == "splash" for pt in self.world.particles))
 
+    def test_garlic_two_bites_mechanic(self):
+        """Validates Garlic loses 50% max HP per bite, displays -50% text, and dies on 2nd bite."""
+        cx, cy = self.world.layout.get_cell_center(3, 0)
+        garlic = Plant.create("garlic", col=3, row=0, x=cx, y=cy)
+        self.world.plants[(3, 0)] = garlic
+        self.assertEqual(garlic.hp, 400.0)
+        self.assertEqual(garlic.max_hp, 400.0)
+
+        # Place a zombie right at the garlic in row 0
+        zombie1 = Zombie.create("basic", row=0, x=cx + 10, y=self.world.layout.get_row_ground_y(0))
+        self.world.zombies.append(zombie1)
+
+        # First bite
+        update_combat(self.world, self.session, dt=0.05)
+
+        # Garlic must have lost exactly 50% HP (200 damage)
+        self.assertEqual(garlic.hp, 200.0)
+        self.assertTrue(garlic.is_alive)
+        self.assertTrue(any("-50% 耐久" in ft.text for ft in self.world.floating_texts))
+        # Zombie diverted to another row (row 1)
+        self.assertNotEqual(zombie1.row, 0)
+
+        # Second bite by another zombie
+        zombie2 = Zombie.create("basic", row=0, x=cx + 10, y=self.world.layout.get_row_ground_y(0))
+        self.world.zombies.append(zombie2)
+        update_combat(self.world, self.session, dt=0.05)
+
+        # Garlic must be dead after second bite!
+        self.assertEqual(garlic.hp, 0.0)
+        self.assertFalse(garlic.is_alive)
+        self.assertTrue(any("大蒜被啃烂了" in ft.text for ft in self.world.floating_texts))
+
+    def test_agave_melee_attack_and_execute_slash(self):
+        """Validates Agave melee strike deals 120 damage and executes low HP zombies (<=120)."""
+        cx, cy = self.world.layout.get_cell_center(2, 1)
+        agave = Plant.create("agave", col=2, row=1, x=cx, y=cy)
+        self.world.plants[(2, 1)] = agave
+
+        # Case 1: Healthy 1300 HP buckethead within 2.2 tiles
+        bucket = Zombie.create("bucket", row=1, x=cx + 60, y=self.world.layout.get_row_ground_y(1))
+        self.world.zombies.append(bucket)
+
+        agave.timer = 0.0
+        update_combat(self.world, self.session, dt=0.05)
+
+        # Dealt 120 damage
+        self.assertEqual(bucket.shield_hp, 980.0)
+        self.assertEqual(bucket.total_current_hp, 1180.0)
+        self.assertTrue(any("120 剑气" in ft.text for ft in self.world.floating_texts))
+        self.assertTrue(any(pt.kind == "slash" for pt in self.world.particles))
+
+        # Case 2: Low HP zombie (100 HP) within reach -> Execution slash!
+        imp = Zombie.create("imp", row=1, x=cx + 40, y=self.world.layout.get_row_ground_y(1))
+        self.world.zombies.append(imp)
+
+        agave.timer = 0.0
+        update_combat(self.world, self.session, dt=0.05)
+
+        # Imp must be executed instantly!
+        self.assertFalse(imp.is_alive)
+        self.assertTrue(any("绝杀斩" in ft.text for ft in self.world.floating_texts))
+
 
 if __name__ == "__main__":
     unittest.main()

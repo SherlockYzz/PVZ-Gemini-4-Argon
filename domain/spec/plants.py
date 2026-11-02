@@ -272,7 +272,7 @@ PLANTS: dict[str, PlantSpec] = {
     "agave": PlantSpec(
         id="agave", name="龙舌兰", cost=150, cooldown=10.0, max_hp=600,
         placement=PlacementRule.LAND_ONLY,
-        behavior=BehaviorSpec(kind=BehaviorKind.MELEE, interval=1.2, damage=65.0),
+        behavior=BehaviorSpec(kind=BehaviorKind.MELEE, interval=1.0, damage=120.0),
         tip="龙舌兰：蓄力剑气横扫前方僵尸，对残血敌人具有斩杀破甲效果！",
     ),
     "laserbean": PlantSpec(
